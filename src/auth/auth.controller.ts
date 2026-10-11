@@ -8,6 +8,7 @@ import type { Response } from 'express';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { MfaLoginDto, RecoveryLoginDto } from './dto/mfa-login.dto';
+import { EnableMfaDto, DisableMfaDto } from './dto/mfa.dto';
 import { PasskeyPayloadDto, RenamePasskeyDto } from './dto/passkey.dto';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
@@ -75,17 +76,18 @@ export class AuthController {
     const token = cookie?.match(/(?:^|;\s*)tce_refresh_token=([^;]+)/)?.[1];
     if (!token) throw new UnauthorizedException('Refresh token required');
     return this.auth.refresh(decodeURIComponent(token), {
-      response,
-      ip: this.clientIp(forwardedFor),
-      userAgent,
+      response, ip: this.clientIp(forwardedFor), userAgent,
     });
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout(@Res({ passthrough: true }) response: Response) {
-    this.auth.clearRefreshCookie(response);
-    return { ok: true };
+  logout(
+    @Headers('cookie') cookie: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const token = cookie?.match(/(?:^|;\s*)tce_refresh_token=([^;]+)/)?.[1];
+    return this.auth.logout(token ? decodeURIComponent(token) : undefined, response);
   }
 
   @Post('mfa/setup')
@@ -99,14 +101,16 @@ export class AuthController {
   @Post('mfa/enable')
   async mfaEnable(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { secret: string; code: string },
+    @Body() body: EnableMfaDto,
   ) {
     const userId = this.authenticatedUserId(authorization);
     const user = await this.repository.findById(userId);
     if (!user?.mfaSecretEncrypted || this.mfaCrypto.decrypt(user.mfaSecretEncrypted) !== body.secret) {
       throw new UnauthorizedException('Invalid MFA setup');
     }
-    if (!this.mfa.verifyTotp(body.secret, body.code)) throw new UnauthorizedException('Invalid MFA code');
+    if (!this.mfa.verifyTotp(body.secret, body.code)) {
+      throw new UnauthorizedException('Invalid MFA code');
+    }
     await this.repository.updateMfa(userId, true, this.mfaCrypto.encrypt(body.secret));
     const codes = Array.from({ length: 10 }, () => this.mfa.generateRecoveryCode());
     await this.repository.createRecoveryCodes(userId, codes.map((code) => this.hash(code)));
@@ -116,11 +120,13 @@ export class AuthController {
   @Post('mfa/disable')
   async mfaDisable(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { code: string },
+    @Body() body: DisableMfaDto,
   ) {
     const userId = this.authenticatedUserId(authorization);
     const user = await this.repository.findById(userId);
-    if (!user?.mfaEnabled || !user.mfaSecretEncrypted) throw new UnauthorizedException('MFA is not enabled');
+    if (!user?.mfaEnabled || !user.mfaSecretEncrypted) {
+      throw new UnauthorizedException('MFA is not enabled');
+    }
     if (!this.mfa.verifyTotp(this.mfaCrypto.decrypt(user.mfaSecretEncrypted), body.code)) {
       throw new UnauthorizedException('Invalid MFA code');
     }
@@ -136,7 +142,9 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const user = await this.repository.findById(body.userId);
-    if (!user?.mfaEnabled || !user.mfaSecretEncrypted) throw new UnauthorizedException('Invalid MFA configuration');
+    if (!user?.mfaEnabled || !user.mfaSecretEncrypted) {
+      throw new UnauthorizedException('Invalid MFA configuration');
+    }
     if (!this.mfa.verifyTotp(this.mfaCrypto.decrypt(user.mfaSecretEncrypted), body.code)) {
       throw new UnauthorizedException('Invalid MFA code');
     }
@@ -193,7 +201,10 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.passkey.authenticationVerify(body, this.clientIp(forwardedFor), userAgent);
-    if (result.refreshToken) this.setRefreshCookie(response, result.refreshToken);
+    if (result.refreshToken) {
+      this.setRefreshCookie(response, result.refreshToken);
+      return { accessToken: result.accessToken };
+    }
     return result;
   }
 
@@ -220,7 +231,9 @@ export class AuthController {
   }
 
   private authenticatedUserId(authorization?: string) {
-    if (!authorization?.startsWith('Bearer ')) throw new UnauthorizedException('Bearer token required');
+    if (!authorization?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Bearer token required');
+    }
     return this.jwt.verify(authorization.slice(7)).sub;
   }
 
@@ -235,8 +248,10 @@ export class AuthController {
 
   private setRefreshCookie(response: Response, token: string) {
     response.cookie('tce_refresh_token', token, {
-      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax', path: '/api/auth',
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      path: '/api/auth',
       maxAge: Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
     });
   }
