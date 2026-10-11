@@ -126,7 +126,7 @@ export class AuthRepository {
 
       if (session.revoked_at || session.replaced_by) {
         await client.query('UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1', [session.family_id]);
-        return this.throwRefreshReuse();
+        return { reuseDetected: true } as never;
       }
 
       const userResult = await client.query<{
@@ -151,10 +151,6 @@ export class AuthRepository {
       if (updated.rowCount !== 1) throw new UnauthorizedException('Refresh session changed concurrently');
       return { user, familyId: session.family_id };
     });
-  }
-
-  private throwRefreshReuse(): never {
-    throw new UnauthorizedException('Refresh token reuse detected');
   }
 
   async revokeRefreshSession(id: string): Promise<boolean> {
