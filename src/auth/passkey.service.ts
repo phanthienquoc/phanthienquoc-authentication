@@ -9,6 +9,7 @@ import { isoUint8Array } from '@simplewebauthn/server/helpers';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
 import { PasskeyRepository } from './passkey.repository';
+import type { Response } from 'express';
 
 const isProduction = () => process.env.NODE_ENV === 'production';
 const rpName = () => process.env.PASSKEY_RP_NAME || 'MrCute';
@@ -82,7 +83,7 @@ export class PasskeyService {
     return options;
   }
 
-  async authenticationVerify(response: any, ip?: string, userAgent?: string) {
+  async authenticationVerify(response: any, ip?: string, userAgent?: string, httpResponse?: Response) {
     this.requireConfig();
     const credentialId = response.id || response.rawId;
     const credential = await this.passkeys.findByCredentialId(credentialId);
