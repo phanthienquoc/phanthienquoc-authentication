@@ -23,7 +23,7 @@ export class PasswordService {
     return actual.length === expected.length && timingSafeEqual(actual, expected);
   }
 
-  async hashToken(token: string): Promise<string> {
+  hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
 }
