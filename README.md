@@ -2,18 +2,20 @@
 
 Central NestJS authentication service for TCE Dashboard and Media Generation.
 
-## Status: implementation branch, not production-ready
+## Status: scaffold CI-green, not production-ready
 
 Branch: `feat/nestjs-auth-service`
 
-This branch scaffolds NestJS with DTO validation, parameterized PostgreSQL access, password/JWT/session primitives, MFA/TOTP recovery handling, passkey/WebAuthn handlers and CI workflow. It has not yet passed a verified build/test run, and the TCE/Media clients have not been cut over.
+CI run: https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/38132260499
+
+The current branch passes the existing unit test, TypeScript typecheck and NestJS production build. That validates the current scaffold only, not an end-to-end migration or production readiness.
 
 ## Architecture
 
-- NestJS owns authentication and business rules: input validation, password checks, session issuance/rotation, JWTs, MFA/TOTP, recovery codes, passkeys and endpoint authorization.
-- PostgreSQL/Supabase is a persistence plane accessed by the Node `pg` driver. This service does not use Supabase Auth, PostgREST or Supabase RPCs for authentication decisions.
-- Preserve existing database integrity constraints (primary keys, foreign keys, unique constraints and essential checks). Add validation in DTOs/services; review every proposed constraint change separately. No constraints are dropped by this branch.
-- TCE and Media should call the shared auth origin rather than independently owning password/session behavior.
+- NestJS owns authentication business rules: DTO validation, password checks, session issuance/rotation, JWT handling, MFA/TOTP, recovery codes and passkey/WebAuthn orchestration.
+- PostgreSQL/Supabase is accessed as a persistence plane using the Node `pg` driver. This service does not rely on Supabase Auth, PostgREST or Supabase RPCs for authentication decisions.
+- Keep database integrity constraints—primary keys, foreign keys, uniqueness and essential checks—as defense in depth. Code validation complements DB constraints. No constraints have been dropped by this branch.
+- TCE and Media are intended to call the shared auth origin rather than own duplicate password/session logic; their clients have not yet been migrated.
 
 ## Local development
 
@@ -24,6 +26,7 @@ cp .env.example .env
 npm install
 npm run start:dev
 npm test
+npm run typecheck
 npm run build
 ```
 
@@ -36,18 +39,19 @@ npm run build
 - MFA setup/enable/disable/status/login/recovery
 - Passkey registration/login options and verification, list, rename and delete
 
-The Nest app currently uses an `/api` global prefix, while the existing client convention calls `/auth/*`. Align this via an intentional gateway rewrite or a code/config change before cutover.
+The Nest app uses an `/api` global prefix, while existing clients call `/auth/*`. Align the route prefix or gateway rewrite explicitly before cutover.
 
 ## Known integration gates
 
-- Existing TCE password hashes use the `salt:hex` scrypt representation; the scaffold now emits/verifies that format.
-- Existing schema includes `users` with MFA columns; `refresh_sessions` with `family_id` and `replaced_by`; recovery-code and passkey tables. These are accessed by SQL using bound parameters.
-- Refresh rotation has a transaction/row-lock implementation branch-side, but replay/concurrency/error behavior must pass integration tests against the exact live schema before release.
-- Passkey code has not been compile-tested against the pinned SimpleWebAuthn version.
-- MFA recovery and challenge consumption must be verified as one-time under concurrency.
-- Cookie domain/path, CORS and `/auth/me` forwarding need an end-to-end browser-to-Media smoke test.
-- Add rate limiting, full test coverage, immutable image deployment, secret wiring and rollback tests before production.
+- Commit a `package-lock.json` and use deterministic CI installs; the current workflow generates the lockfile during each run before `npm ci`.
+- Current test coverage is only 3 PasswordService tests. Add integration tests for signup/login, JWT claims, session refresh/reuse/revocation, MFA/recovery one-time use, WebAuthn challenge expiry/replay, and client cookie forwarding.
+- Existing TCE password hashes use the `salt:hex` scrypt representation; the scaffold currently preserves this format. Verify compatibility against representative non-sensitive fixtures before use.
+- Exact live DB column types, indexes, constraints, RLS grants and transaction behavior still need systematic review. No migrations or constraint changes were performed.
+- Verify SimpleWebAuthn integration with real browser-generated fixtures; build success does not prove passkey behavior.
+- Cookie domain/path, CORS, CSRF and `/auth/me` forwarding need TCE/Media end-to-end smoke tests.
+- Add rate limiting, structured security audit events, secret validation, and deployment/rollback configuration before production.
+- CI audit output reported 50 dependency vulnerabilities on the first lockfile resolution (2 low, 13 moderate, 35 high). Review with `npm audit` and patch compatible dependencies; do not use `npm audit fix --force` without reviewing breaking upgrades.
 
 ## Safety boundary
 
-Do not apply destructive schema changes merely to make the code compile. Do not publish database credentials. Do not cut over production users until hash compatibility, MFA and passkey behavior, cookie semantics and CI have all been verified.
+Do not apply destructive schema changes simply to make the code compile. Do not publish database credentials. Do not route production users until auth compatibility, integration tests and rollback are verified.
