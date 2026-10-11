@@ -24,7 +24,9 @@ export class AuthService {
     const email = input.email.trim().toLowerCase();
     try {
       const user = await this.repository.createUser({
-        email, passwordHash: await this.passwords.hash(input.password), role: 'USER',
+        email,
+        passwordHash: await this.passwords.hash(input.password),
+        role: 'USER',
       });
       return { user: this.publicUser(user) };
     } catch (error) {
@@ -36,7 +38,11 @@ export class AuthService {
     }
   }
 
-  async login(input: LoginDto, context: { userAgent?: string; ip?: string; response: Response }) {
+  async login(input: LoginDto, context: {
+    userAgent?: string;
+    ip?: string;
+    response: Response;
+  }) {
     const email = input.email.trim().toLowerCase();
     let user: AuthUser | null;
     try {
@@ -44,6 +50,7 @@ export class AuthService {
     } catch {
       throw new ServiceUnavailableException('Authentication unavailable');
     }
+
     if (!user || !(await this.passwords.verify(input.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -51,13 +58,22 @@ export class AuthService {
     return this.issueLoginForUser(user, context);
   }
 
-  async issueLoginForUser(user: AuthUser, context: { userAgent?: string; ip?: string; response?: Response }) {
+  async issueLoginForUser(user: AuthUser, context: {
+    userAgent?: string;
+    ip?: string;
+    response?: Response;
+  }) {
     const refreshToken = randomBytes(48).toString('base64url');
     await this.repository.createRefreshSession({
-      sessionId: randomUUID(), userId: user.id, familyId: randomUUID(),
+      sessionId: randomUUID(),
+      userId: user.id,
+      familyId: randomUUID(),
       tokenHash: this.passwords.hashToken(refreshToken),
-      expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
-      ip: context.ip, userAgent: context.userAgent,
+      expiresAt: new Date(
+        Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
+      ),
+      ip: context.ip,
+      userAgent: context.userAgent,
     });
     if (context.response) this.setRefreshCookie(context.response, refreshToken);
     return { accessToken: this.jwt.issue(user.id, user.role), refreshToken };
@@ -69,49 +85,73 @@ export class AuthService {
     return { user: this.publicUser(user) };
   }
 
-  async refresh(presentedToken: string, context: { response: Response; ip?: string; userAgent?: string }) {
+  async refresh(presentedToken: string, context: {
+    response: Response;
+    ip?: string;
+    userAgent?: string;
+  }) {
     const nextToken = randomBytes(48).toString('base64url');
     try {
       const result = await this.repository.rotateRefreshSession({
         tokenHash: this.passwords.hashToken(presentedToken),
         nextSessionId: randomUUID(),
         nextTokenHash: this.passwords.hashToken(nextToken),
-        expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
-        ip: context.ip, userAgent: context.userAgent,
+        expiresAt: new Date(
+          Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
+        ),
+        ip: context.ip,
+        userAgent: context.userAgent,
       });
-      if ((result as any).reuseDetected) {
+
+      if (result.status === 'reuse-detected') {
         this.clearRefreshCookie(context.response);
         throw new UnauthorizedException('Refresh token reuse detected');
       }
+
       this.setRefreshCookie(context.response, nextToken);
       return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
     } catch (error) {
       this.clearRefreshCookie(context.response);
       if (error instanceof UnauthorizedException) throw error;
-      if (error instanceof ServiceUnavailableException) throw new UnauthorizedException('Invalid or expired refresh token');
+      if (error instanceof ServiceUnavailableException) {
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
       throw error;
     }
   }
 
-  async completeMfaLogin(user: AuthUser, context: { userAgent?: string; ip?: string; response: Response }) {
+  async completeMfaLogin(user: AuthUser, context: {
+    userAgent?: string;
+    ip?: string;
+    response: Response;
+  }) {
     return this.issueLoginForUser(user, context);
   }
 
-  async completeMfaRecoveryLogin(user: AuthUser, context: { userAgent?: string; ip?: string; response: Response }) {
+  async completeMfaRecoveryLogin(user: AuthUser, context: {
+    userAgent?: string;
+    ip?: string;
+    response: Response;
+  }) {
     return this.issueLoginForUser(user, context);
   }
 
   clearRefreshCookie(response: Response) {
     response.cookie('tce_refresh_token', '', {
-      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax', path: '/api/auth', maxAge: 0,
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      path: '/api/auth',
+      maxAge: 0,
     });
   }
 
   private setRefreshCookie(response: Response, token: string) {
     response.cookie('tce_refresh_token', token, {
-      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax', path: '/api/auth',
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      path: '/api/auth',
       maxAge: Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
     });
   }
