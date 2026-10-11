@@ -8,7 +8,7 @@ Branch: `feat/nestjs-auth-service`
 
 CI run: https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/38132260499
 
-The current branch passes the existing unit test, TypeScript typecheck and NestJS production build. That validates the current scaffold only, not an end-to-end migration or production readiness.
+The current branch passes the existing unit tests, TypeScript typecheck and NestJS production build. That validates the current scaffold only, not an end-to-end migration or production readiness. The README change itself was also re-verified green by CI: https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/38132362953
 
 ## Architecture
 
