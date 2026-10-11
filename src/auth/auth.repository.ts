@@ -3,7 +3,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, QueryResultRow } from 'pg';
 
 export interface AuthUser {
   id: string;
@@ -193,7 +193,7 @@ export class AuthRepository {
     return result.rowCount === 1;
   }
 
-  async query<T = unknown>(sql: string, values: unknown[] = []) {
+  async query<T extends QueryResultRow = QueryResultRow>(sql: string, values: unknown[] = []) {
     if (!process.env.DATABASE_URL) {
       throw new ServiceUnavailableException('Database is not configured');
     }
