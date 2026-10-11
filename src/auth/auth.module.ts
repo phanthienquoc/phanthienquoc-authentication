@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { Pool } from 'pg';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
@@ -9,20 +8,12 @@ import { JwtService } from './jwt.service';
 import { PasswordService } from './password.service';
 import { MfaService } from './mfa.service';
 import { MfaCryptoService } from './mfa-crypto.service';
+import { SupabaseClientService } from '../db/supabase.client';
 
 @Module({
   controllers: [AuthController],
   providers: [
-    {
-      provide: Pool,
-      useFactory: () => new Pool({
-        connectionString: process.env.DATABASE_URL,
-        max: Number(process.env.DB_POOL_MAX ?? 5),
-        idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 5_000,
-        ssl: process.env.DATABASE_URL?.includes('localhost') ? undefined : { rejectUnauthorized: true },
-      }),
-    },
+    SupabaseClientService,
     AuthService,
     AuthRepository,
     PasskeyRepository,
@@ -32,6 +23,6 @@ import { MfaCryptoService } from './mfa-crypto.service';
     MfaService,
     MfaCryptoService,
   ],
-  exports: [AuthService, JwtService, MfaService, MfaCryptoService],
+  exports: [AuthService, AuthRepository, JwtService, MfaService, MfaCryptoService],
 })
 export class AuthModule {}
