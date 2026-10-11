@@ -123,6 +123,13 @@ begin
     );
   end if;
 
+  -- Insert first because replaced_by has a self-referencing foreign key.
+  insert into public.refresh_sessions
+    (id, user_id, token_hash, family_id, expires_at, ip, user_agent)
+  values
+    (p_next_session_id, v_session.user_id, p_next_token_hash, v_session.family_id,
+     p_next_expires_at, nullif(p_ip, '')::inet, p_user_agent);
+
   update public.refresh_sessions
   set replaced_by = p_next_session_id, revoked_at = now(), last_used_at = now()
   where id = v_session.id
@@ -131,6 +138,7 @@ begin
     and expires_at > now();
 
   if not found then
+    delete from public.refresh_sessions where id = p_next_session_id;
     update public.refresh_sessions
     set revoked_at = coalesce(revoked_at, now())
     where family_id = v_session.family_id and revoked_at is null;
@@ -140,12 +148,6 @@ begin
       'family_id', v_session.family_id
     );
   end if;
-
-  insert into public.refresh_sessions
-    (id, user_id, token_hash, family_id, expires_at, ip, user_agent)
-  values
-    (p_next_session_id, v_session.user_id, p_next_token_hash, v_session.family_id,
-     p_next_expires_at, nullif(p_ip, '')::inet, p_user_agent);
 
   return jsonb_build_object(
     'status', 'rotated',
