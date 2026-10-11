@@ -26,19 +26,31 @@ export class PasskeyRepository {
   }
 
   async consumeChallenge(challenge: string, purpose: 'registration' | 'authentication') {
-    const result = await this.pool.query<{
-      id: string; user_id: string | null; challenge: string; purpose: string; expires_at: Date;
-    }>(
-      `DELETE FROM public.auth_passkey_challenges
-       WHERE id = (
-         SELECT id FROM public.auth_passkey_challenges
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query<{
+        id: string; user_id: string | null; challenge: string; purpose: string; expires_at: Date;
+      }>(
+        `SELECT id,user_id,challenge,purpose,expires_at FROM public.auth_passkey_challenges
          WHERE challenge = $1 AND purpose = $2 AND expires_at > now()
-         ORDER BY created_at DESC LIMIT 1 FOR UPDATE SKIP LOCKED
-       )
-       RETURNING id,user_id,challenge,purpose,expires_at`,
-      [challenge, purpose],
-    );
-    return result.rows[0] ?? null;
+         ORDER BY created_at DESC LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        [challenge, purpose],
+      );
+      const row = selected.rows[0];
+      if (!row) {
+        await client.query('COMMIT');
+        return null;
+      }
+      await client.query('DELETE FROM public.auth_passkey_challenges WHERE id = $1', [row.id]);
+      await client.query('COMMIT');
+      return row;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listForUser(userId: string): Promise<PasskeyCredential[]> {
