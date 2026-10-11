@@ -200,11 +200,7 @@ export class AuthController {
     @Headers('x-forwarded-for') forwardedFor: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.passkey.authenticationVerify(body, this.clientIp(forwardedFor), userAgent);
-    if (result.refreshToken) {
-      this.setRefreshCookie(response, result.refreshToken);
-      return { accessToken: result.accessToken };
-    }
+    const result = await this.passkey.authenticationVerify(body, this.clientIp(forwardedFor), userAgent, response);
     return result;
   }
 
