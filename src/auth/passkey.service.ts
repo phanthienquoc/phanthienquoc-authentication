@@ -105,11 +105,16 @@ export class PasskeyService {
       requireUserVerification: true,
     });
     if (!verification.verified) throw new UnauthorizedException('Passkey authentication failed');
-    await this.passkeys.updateCredential(credential.id, verification.authenticationInfo.newCounter, response.response.transports);
+    await this.passkeys.updateCredential(
+      credential.id,
+      credential.counter,
+      verification.authenticationInfo.newCounter,
+      response.response.transports,
+    );
     const user = await this.users.findById(credential.user_id);
     if (!user) throw new UnauthorizedException();
     if (user.mfaEnabled) return { mfaRequired: true as const, userId: user.id };
-    return this.auth.issueLoginForUser(user, { ip, userAgent });
+    return this.auth.issueLoginForUser(user, { ip, userAgent, response: httpResponse });
   }
 
   async list(userId: string) { return this.passkeys.listForUser(userId); }
