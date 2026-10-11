@@ -2,20 +2,24 @@
 
 Central NestJS authentication service for TCE Dashboard and Media Generation.
 
-## Status: scaffold CI-green, not production-ready
+## Status: integration work in progress; not production-ready
 
 Branch: `feat/nestjs-auth-service`
 
-CI run: https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/38132260499
-
-The current branch passes the existing unit tests, TypeScript typecheck and NestJS production build. That validates the current scaffold only, not an end-to-end migration or production readiness. The README change itself was also re-verified green by CI: https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/38132362953
+The current scaffold's CI has passed unit tests, TypeScript typecheck and the NestJS production build. That validates the scaffold only, not an end-to-end migration or production readiness.
 
 ## Architecture
 
 - NestJS owns authentication business rules: DTO validation, password checks, session issuance/rotation, JWT handling, MFA/TOTP, recovery codes and passkey/WebAuthn orchestration.
-- PostgreSQL/Supabase is accessed as a persistence plane using the Node `pg` driver. This service does not rely on Supabase Auth, PostgREST or Supabase RPCs for authentication decisions.
-- Keep database integrity constraints—primary keys, foreign keys, uniqueness and essential checks—as defense in depth. Code validation complements DB constraints. No constraints have been dropped by this branch.
-- TCE and Media are intended to call the shared auth origin rather than own duplicate password/session logic; their clients have not yet been migrated.
+- PostgreSQL is the persistence plane through the Node `pg` driver. Authentication decisions must not depend on Supabase Auth, PostgREST or Supabase RPCs.
+- Keep database integrity constraints—primary keys, foreign keys, uniqueness and essential checks—as defense in depth. No constraints should be dropped to make the service compile.
+- TCE and Media are intended to call the shared auth origin rather than own duplicate password/session logic. Consumer migrations and production cutover are not yet complete.
+
+## API and routing compatibility
+
+The current Nest app has the global `/api` prefix. Health routes are `GET /api/health` and `GET /api/ready`; auth routes are under `/api/auth/*`. Existing MicroFE clients may call `/auth/*`, so explicitly align the gateway rewrite or route prefix and verify cookie forwarding before cutover.
+
+The service currently listens on port `4010`.
 
 ## Local development
 
@@ -30,28 +34,25 @@ npm run typecheck
 npm run build
 ```
 
-## Current routes
+## CI and image release
 
-- `GET /api/health`, `GET /api/ready`
-- `GET /api/auth/status`
-- `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`
-- `POST /api/auth/refresh`, `POST /api/auth/logout`
-- MFA setup/enable/disable/status/login/recovery
-- Passkey registration/login options and verification, list, rename and delete
+- `.github/workflows/ci.yml` runs tests, typecheck and build on feature branches and pull requests.
+- `.github/workflows/release.yml` verifies the service and builds an ARM64 container on `master`, tagged with the exact Git commit SHA. The image includes BuildKit provenance and an SBOM.
+- The release workflow publishes to `ghcr.io/phanthienquoc/microfe-auth:<commit-sha>`. Production deployment is deliberately not triggered from this repository until platform-infra supports a verified single-service promotion and auth compatibility gates pass. The existing platform MicroFE promotion currently expects auth, shell and WebSocket image digests together.
 
-The Nest app uses an `/api` global prefix, while existing clients call `/auth/*`. Align the route prefix or gateway rewrite explicitly before cutover.
+## Required integration gates before production
 
-## Known integration gates
+- Commit and use a reviewed `package-lock.json` for deterministic installs; current CI generates the lockfile during the run.
+- Expand tests beyond the current three PasswordService tests: signup/login, JWT claims, refresh rotation/reuse/revocation, MFA/recovery one-time use, WebAuthn challenge expiry/replay, and cookie forwarding.
+- Verify the exact live DB column types, indexes, constraints, grants and transaction behavior. Preserve existing tables and constraints.
+- Verify SimpleWebAuthn with browser-generated fixtures and confirm scrypt password hash compatibility against non-sensitive fixtures.
+- Test cookie domain/path, CORS, CSRF, rate limits and security audit events.
+- Provision and validate `DATABASE_URL`, `JWT_SECRET` and `MFA_ENCRYPTION_KEY` without printing values.
+- Apply the narrowly scoped MFA challenge migration before enabling MFA challenge persistence. Drop legacy auth RPCs only after both TCE and MicroFE have rolled out and their flows have been verified.
+- Deploy immutable image digests through platform-infra, verify readiness and rollout, and prove rollback before switching traffic.
 
-- Commit a `package-lock.json` and use deterministic CI installs; the current workflow generates the lockfile during each run before `npm ci`.
-- Current test coverage is only 3 PasswordService tests. Add integration tests for signup/login, JWT claims, session refresh/reuse/revocation, MFA/recovery one-time use, WebAuthn challenge expiry/replay, and client cookie forwarding.
-- Existing TCE password hashes use the `salt:hex` scrypt representation; the scaffold currently preserves this format. Verify compatibility against representative non-sensitive fixtures before use.
-- Exact live DB column types, indexes, constraints, RLS grants and transaction behavior still need systematic review. No migrations or constraint changes were performed.
-- Verify SimpleWebAuthn integration with real browser-generated fixtures; build success does not prove passkey behavior.
-- Cookie domain/path, CORS, CSRF and `/auth/me` forwarding need TCE/Media end-to-end smoke tests.
-- Add rate limiting, structured security audit events, secret validation, and deployment/rollback configuration before production.
-- CI audit output reported 50 dependency vulnerabilities on the first lockfile resolution (2 low, 13 moderate, 35 high). Review with `npm audit` and patch compatible dependencies; do not use `npm audit fix --force` without reviewing breaking upgrades.
+The first dependency resolution reported 50 npm audit findings (2 low, 13 moderate, 35 high). Review and patch compatible dependencies; do not run `npm audit fix --force` without reviewing breaking changes.
 
 ## Safety boundary
 
-Do not apply destructive schema changes simply to make the code compile. Do not publish database credentials. Do not route production users until auth compatibility, integration tests and rollback are verified.
+Do not publish database credentials, perform destructive schema changes, remove DB integrity constraints, or route production users until auth compatibility, integration tests, secret availability and rollback are verified.
