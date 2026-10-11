@@ -28,7 +28,7 @@ export class AuthRepository {
   async findByEmail(email: string): Promise<AuthUser | null> {
     const { data, error } = await this.supabase.db.from('users')
       .select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted')
-      .ilike('email', email.trim().toLowerCase()).limit(1).maybeSingle<UserRow>();
+      .eq('email', email.trim().toLowerCase()).limit(1).maybeSingle<UserRow>();
     if (error) this.persistenceError();
     return this.mapUser(data ?? undefined);
   }
