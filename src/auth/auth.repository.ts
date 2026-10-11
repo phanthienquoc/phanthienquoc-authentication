@@ -1,6 +1,5 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
-import { UnauthorizedException } from '@nestjs/common';
 
 export interface AuthUser {
   id: string;
@@ -73,10 +72,7 @@ export class AuthRepository {
     await this.withTransaction(async (client) => {
       await client.query('DELETE FROM public.mfa_recovery_codes WHERE user_id = $1 AND used_at IS NULL', [userId]);
       for (const hash of hashes) {
-        await client.query(
-          'INSERT INTO public.mfa_recovery_codes (user_id,code_hash) VALUES ($1,$2)',
-          [userId, hash],
-        );
+        await client.query('INSERT INTO public.mfa_recovery_codes (user_id,code_hash) VALUES ($1,$2)', [userId, hash]);
       }
     });
   }
@@ -90,13 +86,8 @@ export class AuthRepository {
   }
 
   async createRefreshSession(input: {
-    sessionId: string;
-    userId: string;
-    familyId: string;
-    tokenHash: string;
-    expiresAt: Date;
-    ip?: string;
-    userAgent?: string;
+    sessionId: string; userId: string; familyId: string; tokenHash: string;
+    expiresAt: Date; ip?: string; userAgent?: string;
   }) {
     await this.query(
       'INSERT INTO public.refresh_sessions (id,user_id,token_hash,family_id,expires_at,ip,user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7)',
@@ -106,8 +97,7 @@ export class AuthRepository {
 
   async findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSession | null> {
     const result = await this.query<{
-      id: string; user_id: string; family_id: string; expires_at: Date;
-      revoked_at: Date | null; replaced_by: string | null;
+      id: string; user_id: string; family_id: string; expires_at: Date; revoked_at: Date | null; replaced_by: string | null;
     }>(
       'SELECT id,user_id,family_id,expires_at,revoked_at,replaced_by FROM public.refresh_sessions WHERE token_hash = $1 LIMIT 1',
       [tokenHash],
@@ -120,12 +110,8 @@ export class AuthRepository {
   }
 
   async rotateRefreshSession(input: {
-    tokenHash: string;
-    nextSessionId: string;
-    nextTokenHash: string;
-    expiresAt: Date;
-    ip?: string;
-    userAgent?: string;
+    tokenHash: string; nextSessionId: string; nextTokenHash: string;
+    expiresAt: Date; ip?: string; userAgent?: string;
   }): Promise<{ user: AuthUser; familyId: string }> {
     return this.withTransaction(async (client) => {
       const locked = await client.query<{
@@ -136,9 +122,8 @@ export class AuthRepository {
         [input.tokenHash],
       );
       const session = locked.rows[0];
-      if (!session || session.expires_at <= new Date()) {
-        throw new UnauthorizedException('Refresh session invalid or expired');
-      }
+      if (!session || session.expires_at <= new Date()) throw new UnauthorizedException('Refresh session invalid or expired');
+
       if (session.revoked_at || session.replaced_by) {
         await client.query('UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1', [session.family_id]);
         return this.throwRefreshReuse();
@@ -173,10 +158,7 @@ export class AuthRepository {
   }
 
   async revokeRefreshSession(id: string): Promise<boolean> {
-    const result = await this.query(
-      'UPDATE public.refresh_sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL RETURNING id',
-      [id],
-    );
+    const result = await this.query('UPDATE public.refresh_sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL RETURNING id', [id]);
     return result.rowCount === 1;
   }
 
@@ -213,9 +195,5 @@ export class AuthRepository {
       id: row.id, email: row.email, passwordHash: row.password_hash,
       role: row.role, mfaEnabled: row.mfa_enabled, mfaSecretEncrypted: row.mfa_secret_encrypted,
     } : null;
-  }
-
-  async onModuleDestroy() {
-    await this.pool.end();
   }
 }
