@@ -39,9 +39,7 @@ export class AuthService {
   }
 
   async login(input: LoginDto, context: {
-    userAgent?: string;
-    ip?: string;
-    response: Response;
+    userAgent?: string; ip?: string; response: Response;
   }) {
     const email = input.email.trim().toLowerCase();
     let user: AuthUser | null;
@@ -50,7 +48,6 @@ export class AuthService {
     } catch {
       throw new ServiceUnavailableException('Authentication unavailable');
     }
-
     if (!user || !(await this.passwords.verify(input.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -59,9 +56,7 @@ export class AuthService {
   }
 
   async issueLoginForUser(user: AuthUser, context: {
-    userAgent?: string;
-    ip?: string;
-    response?: Response;
+    userAgent?: string; ip?: string; response?: Response;
   }) {
     const refreshToken = randomBytes(48).toString('base64url');
     await this.repository.createRefreshSession({
@@ -76,7 +71,8 @@ export class AuthService {
       userAgent: context.userAgent,
     });
     if (context.response) this.setRefreshCookie(context.response, refreshToken);
-    return { accessToken: this.jwt.issue(user.id, user.role), refreshToken };
+    // Refresh token is only delivered by the HttpOnly cookie, never duplicated in JSON.
+    return { accessToken: this.jwt.issue(user.id, user.role) };
   }
 
   async me(userId: string) {
@@ -86,9 +82,7 @@ export class AuthService {
   }
 
   async refresh(presentedToken: string, context: {
-    response: Response;
-    ip?: string;
-    userAgent?: string;
+    response: Response; ip?: string; userAgent?: string;
   }) {
     const nextToken = randomBytes(48).toString('base64url');
     try {
@@ -102,12 +96,10 @@ export class AuthService {
         ip: context.ip,
         userAgent: context.userAgent,
       });
-
       if (result.status === 'reuse-detected') {
         this.clearRefreshCookie(context.response);
         throw new UnauthorizedException('Refresh token reuse detected');
       }
-
       this.setRefreshCookie(context.response, nextToken);
       return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
     } catch (error) {
@@ -120,18 +112,22 @@ export class AuthService {
     }
   }
 
+  async logout(presentedToken: string | undefined, response: Response) {
+    if (presentedToken) {
+      await this.repository.revokeRefreshToken(this.passwords.hashToken(presentedToken));
+    }
+    this.clearRefreshCookie(response);
+    return { ok: true };
+  }
+
   async completeMfaLogin(user: AuthUser, context: {
-    userAgent?: string;
-    ip?: string;
-    response: Response;
+    userAgent?: string; ip?: string; response: Response;
   }) {
     return this.issueLoginForUser(user, context);
   }
 
   async completeMfaRecoveryLogin(user: AuthUser, context: {
-    userAgent?: string;
-    ip?: string;
-    response: Response;
+    userAgent?: string; ip?: string; response: Response;
   }) {
     return this.issueLoginForUser(user, context);
   }
