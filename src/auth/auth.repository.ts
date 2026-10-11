@@ -37,12 +37,8 @@ export class AuthRepository {
 
   async findByEmail(email: string): Promise<AuthUser | null> {
     const result = await this.query<{
-      id: string;
-      email: string;
-      password_hash: string;
-      role: 'USER' | 'ADMIN';
-      mfa_enabled: boolean;
-      mfa_secret_encrypted: string | null;
+      id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+      mfa_enabled: boolean; mfa_secret_encrypted: string | null;
     }>(
       'SELECT id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted FROM public.users WHERE lower(email) = $1 LIMIT 1',
       [email.trim().toLowerCase()],
@@ -52,12 +48,8 @@ export class AuthRepository {
 
   async findById(id: string): Promise<AuthUser | null> {
     const result = await this.query<{
-      id: string;
-      email: string;
-      password_hash: string;
-      role: 'USER' | 'ADMIN';
-      mfa_enabled: boolean;
-      mfa_secret_encrypted: string | null;
+      id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+      mfa_enabled: boolean; mfa_secret_encrypted: string | null;
     }>(
       'SELECT id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted FROM public.users WHERE id = $1 LIMIT 1',
       [id],
@@ -67,12 +59,8 @@ export class AuthRepository {
 
   async createUser(input: { email: string; passwordHash: string; role: 'USER' | 'ADMIN' }) {
     const result = await this.query<{
-      id: string;
-      email: string;
-      password_hash: string;
-      role: 'USER' | 'ADMIN';
-      mfa_enabled: boolean;
-      mfa_secret_encrypted: string | null;
+      id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+      mfa_enabled: boolean; mfa_secret_encrypted: string | null;
     }>(
       'INSERT INTO public.users (email,password_hash,role,mfa_enabled) VALUES ($1,$2,$3,false) RETURNING id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted',
       [input.email.trim().toLowerCase(), input.passwordHash, input.role],
@@ -114,50 +102,43 @@ export class AuthRepository {
   }
 
   async createRefreshSession(input: {
-    sessionId: string;
-    userId: string;
-    familyId: string;
-    tokenHash: string;
-    expiresAt: Date;
-    ip?: string;
-    userAgent?: string;
+    sessionId: string; userId: string; familyId: string; tokenHash: string;
+    expiresAt: Date; ip?: string; userAgent?: string;
   }) {
     await this.query(
       'INSERT INTO public.refresh_sessions (id,user_id,token_hash,family_id,expires_at,ip,user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [
-        input.sessionId,
-        input.userId,
-        input.tokenHash,
-        input.familyId,
-        input.expiresAt,
-        input.ip ?? null,
-        input.userAgent ?? null,
-      ],
+      [input.sessionId, input.userId, input.tokenHash, input.familyId, input.expiresAt, input.ip ?? null, input.userAgent ?? null],
     );
   }
 
+  async findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSession | null> {
+    const result = await this.query<{
+      id: string; user_id: string; family_id: string; expires_at: Date;
+      revoked_at: Date | null; replaced_by: string | null;
+    }>(
+      'SELECT id,user_id,family_id,expires_at,revoked_at,replaced_by FROM public.refresh_sessions WHERE token_hash = $1 LIMIT 1',
+      [tokenHash],
+    );
+    const row = result.rows[0];
+    return row ? {
+      id: row.id, userId: row.user_id, familyId: row.family_id,
+      expiresAt: row.expires_at, revokedAt: row.revoked_at, replacedBy: row.replaced_by,
+    } : null;
+  }
+
   async rotateRefreshSession(input: {
-    tokenHash: string;
-    nextSessionId: string;
-    nextTokenHash: string;
-    expiresAt: Date;
-    ip?: string;
-    userAgent?: string;
+    tokenHash: string; nextSessionId: string; nextTokenHash: string;
+    expiresAt: Date; ip?: string; userAgent?: string;
   }): Promise<RefreshRotationResult> {
     return this.withTransaction(async (client) => {
       const locked = await client.query<{
-        id: string;
-        user_id: string;
-        family_id: string;
-        expires_at: Date;
-        revoked_at: Date | null;
-        replaced_by: string | null;
+        id: string; user_id: string; family_id: string; expires_at: Date;
+        revoked_at: Date | null; replaced_by: string | null;
       }>(
         'SELECT id,user_id,family_id,expires_at,revoked_at,replaced_by FROM public.refresh_sessions WHERE token_hash = $1 FOR UPDATE',
         [input.tokenHash],
       );
       const session = locked.rows[0];
-
       if (!session || session.expires_at <= new Date()) {
         throw new UnauthorizedException('Refresh session invalid or expired');
       }
@@ -167,17 +148,12 @@ export class AuthRepository {
           'UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1',
           [session.family_id],
         );
-        // Returning a discriminated result commits family revocation; throwing here would roll it back.
         return { status: 'reuse-detected', familyId: session.family_id };
       }
 
       const userResult = await client.query<{
-        id: string;
-        email: string;
-        password_hash: string;
-        role: 'USER' | 'ADMIN';
-        mfa_enabled: boolean;
-        mfa_secret_encrypted: string | null;
+        id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+        mfa_enabled: boolean; mfa_secret_encrypted: string | null;
       }>(
         'SELECT id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted FROM public.users WHERE id = $1 FOR UPDATE',
         [session.user_id],
@@ -187,15 +163,7 @@ export class AuthRepository {
 
       const inserted = await client.query(
         'INSERT INTO public.refresh_sessions (id,user_id,token_hash,family_id,expires_at,ip,user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-        [
-          input.nextSessionId,
-          user.id,
-          input.nextTokenHash,
-          session.family_id,
-          input.expiresAt,
-          input.ip ?? null,
-          input.userAgent ?? null,
-        ],
+        [input.nextSessionId, user.id, input.nextTokenHash, session.family_id, input.expiresAt, input.ip ?? null, input.userAgent ?? null],
       );
       if (inserted.rowCount !== 1) throw new UnauthorizedException('Unable to rotate session');
 
@@ -207,6 +175,14 @@ export class AuthRepository {
 
       return { status: 'rotated', user, familyId: session.family_id };
     });
+  }
+
+  async revokeRefreshToken(tokenHash: string): Promise<boolean> {
+    const result = await this.query(
+      'UPDATE public.refresh_sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL RETURNING id',
+      [tokenHash],
+    );
+    return result.rowCount === 1;
   }
 
   async revokeRefreshSession(id: string): Promise<boolean> {
@@ -247,22 +223,12 @@ export class AuthRepository {
   }
 
   private mapUser(row?: {
-    id: string;
-    email: string;
-    password_hash: string;
-    role: 'USER' | 'ADMIN';
-    mfa_enabled: boolean;
-    mfa_secret_encrypted: string | null;
+    id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+    mfa_enabled: boolean; mfa_secret_encrypted: string | null;
   }): AuthUser | null {
-    return row
-      ? {
-          id: row.id,
-          email: row.email,
-          passwordHash: row.password_hash,
-          role: row.role,
-          mfaEnabled: row.mfa_enabled,
-          mfaSecretEncrypted: row.mfa_secret_encrypted,
-        }
-      : null;
+    return row ? {
+      id: row.id, email: row.email, passwordHash: row.password_hash,
+      role: row.role, mfaEnabled: row.mfa_enabled, mfaSecretEncrypted: row.mfa_secret_encrypted,
+    } : null;
   }
 }
