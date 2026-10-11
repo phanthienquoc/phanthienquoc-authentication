@@ -1,65 +1,157 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 
 export interface AuthUser {
-  id: string; email: string; passwordHash: string; role: string; disabledAt: Date | null;
+  id: string;
+  email: string;
+  passwordHash: string;
+  role: 'USER' | 'ADMIN';
+  mfaEnabled: boolean;
+  mfaSecretEncrypted: string | null;
 }
+
 export interface RefreshSession {
-  id: string; userId: string; expiresAt: Date; revokedAt: Date | null;
+  id: string;
+  userId: string;
+  familyId: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  replacedBy: string | null;
 }
 
 @Injectable()
 export class AuthRepository {
   private readonly pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: Number(process.env.DB_POOL_MAX ?? 10),
+    max: Number(process.env.DB_POOL_MAX ?? 5),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
     ssl: process.env.DATABASE_URL?.includes('localhost') ? undefined : { rejectUnauthorized: true },
   });
 
+  async ready(): Promise<void> {
+    await this.query('SELECT 1');
+  }
+
   async findByEmail(email: string): Promise<AuthUser | null> {
     const result = await this.query<{
-      id: string; email: string; password_hash: string; role: string; disabled_at: Date | null;
-    }>('SELECT id,email,password_hash,role,disabled_at FROM public.users WHERE lower(email) = $1 LIMIT 1', [email]);
+      id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+      mfa_enabled: boolean; mfa_secret_encrypted: string | null;
+    }>(
+      'SELECT id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted FROM public.users WHERE lower(email) = $1 LIMIT 1',
+      [email.trim().toLowerCase()],
+    );
     return this.mapUser(result.rows[0]);
   }
 
   async findById(id: string): Promise<AuthUser | null> {
     const result = await this.query<{
-      id: string; email: string; password_hash: string; role: string; disabled_at: Date | null;
-    }>('SELECT id,email,password_hash,role,disabled_at FROM public.users WHERE id = $1 LIMIT 1', [id]);
+      id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+      mfa_enabled: boolean; mfa_secret_encrypted: string | null;
+    }>(
+      'SELECT id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted FROM public.users WHERE id = $1 LIMIT 1',
+      [id],
+    );
     return this.mapUser(result.rows[0]);
   }
 
-  async createUser(input: { email: string; passwordHash: string; role: string }): Promise<AuthUser> {
+  async createUser(input: { email: string; passwordHash: string; role: 'USER' | 'ADMIN' }) {
     const result = await this.query<{
-      id: string; email: string; password_hash: string; role: string; disabled_at: Date | null;
+      id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+      mfa_enabled: boolean; mfa_secret_encrypted: string | null;
     }>(
-      'INSERT INTO public.users (email,password_hash,role) VALUES ($1,$2,$3) RETURNING id,email,password_hash,role,disabled_at',
-      [input.email, input.passwordHash, input.role],
+      'INSERT INTO public.users (email,password_hash,role,mfa_enabled) VALUES ($1,$2,$3,false) RETURNING id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted',
+      [input.email.trim().toLowerCase(), input.passwordHash, input.role],
     );
     return this.mapUser(result.rows[0])!;
   }
 
   async createRefreshSession(input: {
-    sessionId: string; userId: string; tokenHash: string; expiresAt: Date; userAgent?: string;
+    sessionId: string;
+    userId: string;
+    familyId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    ip?: string;
+    userAgent?: string;
   }) {
     await this.query(
-      'INSERT INTO public.refresh_sessions (id,user_id,token_hash,expires_at,user_agent) VALUES ($1,$2,$3,$4,$5)',
-      [input.sessionId, input.userId, input.tokenHash, input.expiresAt, input.userAgent ?? null],
+      'INSERT INTO public.refresh_sessions (id,user_id,token_hash,family_id,expires_at,ip,user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [input.sessionId, input.userId, input.tokenHash, input.familyId, input.expiresAt, input.ip ?? null, input.userAgent ?? null],
     );
   }
 
   async findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSession | null> {
     const result = await this.query<{
-      id: string; user_id: string; expires_at: Date; revoked_at: Date | null;
+      id: string; user_id: string; family_id: string; expires_at: Date;
+      revoked_at: Date | null; replaced_by: string | null;
     }>(
-      'SELECT id,user_id,expires_at,revoked_at FROM public.refresh_sessions WHERE token_hash = $1 LIMIT 1',
+      'SELECT id,user_id,family_id,expires_at,revoked_at,replaced_by FROM public.refresh_sessions WHERE token_hash = $1 LIMIT 1',
       [tokenHash],
     );
     const row = result.rows[0];
-    return row ? { id: row.id, userId: row.user_id, expiresAt: row.expires_at, revokedAt: row.revoked_at } : null;
+    return row ? {
+      id: row.id, userId: row.user_id, familyId: row.family_id,
+      expiresAt: row.expires_at, revokedAt: row.revoked_at, replacedBy: row.replaced_by,
+    } : null;
+  }
+
+  /**
+   * Rotate within one DB transaction. A locked session row serializes concurrent refreshes.
+   * A replay revokes the whole token family; callers must not mint another token on replay.
+   */
+  async rotateRefreshSession(input: {
+    tokenHash: string;
+    nextSessionId: string;
+    nextTokenHash: string;
+    expiresAt: Date;
+    ip?: string;
+    userAgent?: string;
+  }): Promise<{ user: AuthUser; familyId: string }> {
+    return this.withTransaction(async (client) => {
+      const locked = await client.query<{
+        id: string; user_id: string; family_id: string; expires_at: Date;
+        revoked_at: Date | null; replaced_by: string | null;
+      }>(
+        'SELECT id,user_id,family_id,expires_at,revoked_at,replaced_by FROM public.refresh_sessions WHERE token_hash = $1 FOR UPDATE',
+        [input.tokenHash],
+      );
+      const session = locked.rows[0];
+      if (!session || session.expires_at <= new Date()) {
+        throw new ServiceUnavailableException('Refresh session invalid or expired');
+      }
+
+      if (session.revoked_at || session.replaced_by) {
+        await client.query(
+          'UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1',
+          [session.family_id],
+        );
+        throw new ServiceUnavailableException('Refresh token reuse detected');
+      }
+
+      const userResult = await client.query<{
+        id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+        mfa_enabled: boolean; mfa_secret_encrypted: string | null;
+      }>(
+        'SELECT id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted FROM public.users WHERE id = $1 FOR UPDATE',
+        [session.user_id],
+      );
+      const user = this.mapUser(userResult.rows[0]);
+      if (!user) throw new ServiceUnavailableException('Refresh session user unavailable');
+
+      const inserted = await client.query(
+        'INSERT INTO public.refresh_sessions (id,user_id,token_hash,family_id,expires_at,ip,user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [input.nextSessionId, user.id, input.nextTokenHash, session.family_id, input.expiresAt, input.ip ?? null, input.userAgent ?? null],
+      );
+      if (inserted.rowCount !== 1) throw new ServiceUnavailableException('Unable to rotate session');
+
+      const updated = await client.query(
+        'UPDATE public.refresh_sessions SET revoked_at = now(), replaced_by = $2, last_used_at = now() WHERE id = $1 AND revoked_at IS NULL AND replaced_by IS NULL',
+        [session.id, input.nextSessionId],
+      );
+      if (updated.rowCount !== 1) throw new ServiceUnavailableException('Refresh session changed concurrently');
+      return { user, familyId: session.family_id };
+    });
   }
 
   async revokeRefreshSession(id: string): Promise<boolean> {
@@ -79,12 +171,29 @@ export class AuthRepository {
     }
   }
 
+  private async withTransaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+    if (!process.env.DATABASE_URL) throw new ServiceUnavailableException('Database is not configured');
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await work(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   private mapUser(row?: {
-    id: string; email: string; password_hash: string; role: string; disabled_at: Date | null;
+    id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+    mfa_enabled: boolean; mfa_secret_encrypted: string | null;
   }): AuthUser | null {
     return row ? {
       id: row.id, email: row.email, passwordHash: row.password_hash,
-      role: row.role, disabledAt: row.disabled_at,
+      role: row.role, mfaEnabled: row.mfa_enabled, mfaSecretEncrypted: row.mfa_secret_encrypted,
     } : null;
   }
 
