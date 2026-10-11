@@ -7,7 +7,6 @@ import {
 } from '@simplewebauthn/server';
 import { isoUint8Array } from '@simplewebauthn/server/helpers';
 import { AuthRepository } from './auth.repository';
-import { JwtService } from './jwt.service';
 import { AuthService } from './auth.service';
 import { PasskeyRepository } from './passkey.repository';
 
@@ -21,16 +20,13 @@ export class PasskeyService {
   constructor(
     private readonly passkeys: PasskeyRepository,
     private readonly users: AuthRepository,
-    private readonly jwt: JwtService,
     private readonly auth: AuthService,
   ) {}
 
   private requireConfig() {
     const configuredRpID = rpID();
     const configuredOrigin = origin();
-    if (!configuredRpID || !configuredOrigin) {
-      throw new BadRequestException('Passkey is not configured for this environment');
-    }
+    if (!configuredRpID || !configuredOrigin) throw new BadRequestException('Passkey is not configured');
     if (isProduction() && (configuredRpID === 'localhost' || configuredOrigin.startsWith('http://localhost'))) {
       throw new BadRequestException('Passkey production domain is misconfigured');
     }
@@ -48,10 +44,7 @@ export class PasskeyService {
       userName: user.email,
       userDisplayName: user.email,
       attestationType: 'none',
-      excludeCredentials: existing.map((credential) => ({
-        id: credential.credential_id,
-        transports: credential.transports as any,
-      })),
+      excludeCredentials: existing.map((c) => ({ id: c.credential_id, transports: c.transports as any })),
       authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
     });
     await this.passkeys.createChallenge(userId, options.challenge, 'registration');
@@ -84,11 +77,7 @@ export class PasskeyService {
 
   async authenticationOptions() {
     this.requireConfig();
-    const options = await generateAuthenticationOptions({
-      rpID: rpID(),
-      userVerification: 'required',
-      allowCredentials: [],
-    });
+    const options = await generateAuthenticationOptions({ rpID: rpID(), userVerification: 'required', allowCredentials: [] });
     await this.passkeys.createChallenge(null, options.challenge, 'authentication');
     return options;
   }
@@ -116,22 +105,13 @@ export class PasskeyService {
     });
     if (!verification.verified) throw new UnauthorizedException('Passkey authentication failed');
     await this.passkeys.updateCredential(credential.id, verification.authenticationInfo.newCounter, response.response.transports);
-
     const user = await this.users.findById(credential.user_id);
     if (!user) throw new UnauthorizedException();
     if (user.mfaEnabled) return { mfaRequired: true, userId: user.id };
     return this.auth.issueLoginForUser(user, { ip, userAgent });
   }
 
-  async list(userId: string) {
-    return this.passkeys.listForUser(userId);
-  }
-
-  async rename(userId: string, id: string, name: string) {
-    return this.passkeys.rename(userId, id, name);
-  }
-
-  async remove(userId: string, id: string) {
-    return this.passkeys.remove(userId, id);
-  }
+  async list(userId: string) { return this.passkeys.listForUser(userId); }
+  async rename(userId: string, id: string, name: string) { return this.passkeys.rename(userId, id, name); }
+  async remove(userId: string, id: string) { return this.passkeys.remove(userId, id); }
 }
