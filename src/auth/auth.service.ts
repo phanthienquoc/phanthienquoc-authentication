@@ -29,7 +29,6 @@ export class AuthService {
       const user = await this.repository.createUser({ email, passwordHash, role: 'USER' });
       return { user: this.publicUser(user) };
     } catch (error) {
-      // Preserve the database unique index as the race-safe source of truth.
       if ((error as { code?: string })?.code === '23505') {
         throw new ConflictException('Unable to create account with these details');
       }
@@ -37,9 +36,7 @@ export class AuthService {
     }
   }
 
-  async login(input: LoginDto, context: {
-    userAgent?: string; ip?: string; response: Response;
-  }) {
+  async login(input: LoginDto, context: { userAgent?: string; ip?: string; response: Response }) {
     const email = input.email.trim().toLowerCase();
     let user: AuthUser | null;
     try {
@@ -47,27 +44,28 @@ export class AuthService {
     } catch {
       throw new ServiceUnavailableException('Authentication unavailable');
     }
-
     if (!user || !(await this.passwords.verify(input.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
     if (user.mfaEnabled) return { mfaRequired: true, userId: user.id };
+    return this.issueLoginForUser(user, context);
+  }
 
+  async issueLoginForUser(user: AuthUser, context: {
+    userAgent?: string; ip?: string; response?: Response;
+  }) {
     const refreshToken = randomBytes(48).toString('base64url');
-    const tokenHash = this.passwords.hashToken(refreshToken);
-    const sessionId = randomUUID();
-    const familyId = randomUUID();
     await this.repository.createRefreshSession({
-      sessionId,
+      sessionId: randomUUID(),
       userId: user.id,
-      familyId,
-      tokenHash,
+      familyId: randomUUID(),
+      tokenHash: this.passwords.hashToken(refreshToken),
       expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
       ip: context.ip,
       userAgent: context.userAgent,
     });
-    this.setRefreshCookie(context.response, refreshToken);
-    return { accessToken: this.jwt.issue(user.id, user.role) };
+    if (context.response) this.setRefreshCookie(context.response, refreshToken);
+    return { accessToken: this.jwt.issue(user.id, user.role), refreshToken };
   }
 
   async me(userId: string) {
@@ -76,13 +74,10 @@ export class AuthService {
     return { user: this.publicUser(user) };
   }
 
-  async refresh(presentedToken: string, context: {
-    response: Response; ip?: string; userAgent?: string;
-  }) {
+  async refresh(presentedToken: string, context: { response: Response; ip?: string; userAgent?: string }) {
     const nextToken = randomBytes(48).toString('base64url');
-    let result;
     try {
-      result = await this.repository.rotateRefreshSession({
+      const result = await this.repository.rotateRefreshSession({
         tokenHash: this.passwords.hashToken(presentedToken),
         nextSessionId: randomUUID(),
         nextTokenHash: this.passwords.hashToken(nextToken),
@@ -90,19 +85,26 @@ export class AuthService {
         ip: context.ip,
         userAgent: context.userAgent,
       });
+      this.setRefreshCookie(context.response, nextToken);
+      return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
     } catch (error) {
       this.clearRefreshCookie(context.response);
-      if (error instanceof UnauthorizedException) throw error;
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       if (error instanceof ServiceUnavailableException) {
-        // The repository currently reports database/rotation failures through a generic boundary.
-        // Do not expose whether a token hash, user, or account exists.
         throw new UnauthorizedException('Invalid or expired refresh token');
       }
       throw error;
     }
+  }
 
-    this.setRefreshCookie(context.response, nextToken);
-    return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
+  async completeMfaLogin(user: AuthUser, context: { userAgent?: string; ip?: string; response: Response }) {
+    return this.issueLoginForUser(user, context);
+  }
+
+  async completeMfaRecoveryLogin(user: AuthUser, context: { userAgent?: string; ip?: string; response: Response }) {
+    return this.issueLoginForUser(user, context);
   }
 
   clearRefreshCookie(response: Response) {
