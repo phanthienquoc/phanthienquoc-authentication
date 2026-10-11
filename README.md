@@ -17,7 +17,7 @@ The current scaffold's CI has passed unit tests, TypeScript typecheck and the Ne
 
 ## API and routing compatibility
 
-The current Nest app has the global `/api` prefix. Health routes are `GET /api/health` and `GET /api/ready`; auth routes are under `/api/auth/*`. Existing MicroFE clients may call `/auth/*`, so explicitly align the gateway rewrite or route prefix and verify cookie forwarding before cutover.
+The operational endpoints are `GET /api/health` and `GET /api/ready`. Auth endpoints preserve the existing `/auth/*` route contract by excluding the auth controller from the global `/api` prefix. Verify the route and cookie forwarding end-to-end through the real gateway before cutover.
 
 The service currently listens on port `4010`.
 
