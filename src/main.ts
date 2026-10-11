@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -8,7 +8,12 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.use(helmet());
   app.enableShutdownHooks();
-  app.setGlobalPrefix('api');
+
+  // Preserve the existing TCE/Media auth API contract at /auth/*.
+  // Keep operational endpoints under /api/* for health/readiness probes.
+  app.setGlobalPrefix('api', {
+    exclude: [{ path: 'auth/{*path}', method: RequestMethod.ALL }],
+  });
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
