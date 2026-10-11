@@ -66,6 +66,34 @@ export class AuthRepository {
     return this.mapUser(result.rows[0])!;
   }
 
+  async updateMfa(userId: string, enabled: boolean, encryptedSecret: string | null) {
+    const result = await this.query(
+      'UPDATE public.users SET mfa_enabled = $2, mfa_secret_encrypted = $3, updated_at = now() WHERE id = $1 RETURNING id',
+      [userId, enabled, encryptedSecret],
+    );
+    if (result.rowCount !== 1) throw new ServiceUnavailableException('Unable to update MFA configuration');
+  }
+
+  async createRecoveryCodes(userId: string, hashes: string[]) {
+    await this.withTransaction(async (client) => {
+      await client.query('DELETE FROM public.mfa_recovery_codes WHERE user_id = $1 AND used_at IS NULL', [userId]);
+      for (const hash of hashes) {
+        await client.query(
+          'INSERT INTO public.mfa_recovery_codes (user_id,code_hash) VALUES ($1,$2)',
+          [userId, hash],
+        );
+      }
+    });
+  }
+
+  async consumeRecoveryCode(userId: string, codeHash: string): Promise<boolean> {
+    const result = await this.query(
+      'UPDATE public.mfa_recovery_codes SET used_at = now() WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL RETURNING id',
+      [userId, codeHash],
+    );
+    return result.rowCount === 1;
+  }
+
   async createRefreshSession(input: {
     sessionId: string;
     userId: string;
@@ -96,10 +124,6 @@ export class AuthRepository {
     } : null;
   }
 
-  /**
-   * Rotate within one DB transaction. A locked session row serializes concurrent refreshes.
-   * A replay revokes the whole token family; callers must not mint another token on replay.
-   */
   async rotateRefreshSession(input: {
     tokenHash: string;
     nextSessionId: string;
@@ -118,15 +142,11 @@ export class AuthRepository {
       );
       const session = locked.rows[0];
       if (!session || session.expires_at <= new Date()) {
-        throw new ServiceUnavailableException('Refresh session invalid or expired');
+        throw new UnauthorizedError('Refresh session invalid or expired');
       }
-
       if (session.revoked_at || session.replaced_by) {
-        await client.query(
-          'UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1',
-          [session.family_id],
-        );
-        throw new ServiceUnavailableException('Refresh token reuse detected');
+        await client.query('UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1', [session.family_id]);
+        return this.throwRefreshReuse();
       }
 
       const userResult = await client.query<{
@@ -137,21 +157,24 @@ export class AuthRepository {
         [session.user_id],
       );
       const user = this.mapUser(userResult.rows[0]);
-      if (!user) throw new ServiceUnavailableException('Refresh session user unavailable');
+      if (!user) throw new UnauthorizedError('Refresh session user unavailable');
 
       const inserted = await client.query(
         'INSERT INTO public.refresh_sessions (id,user_id,token_hash,family_id,expires_at,ip,user_agent) VALUES ($1,$2,$3,$4,$5,$6,$7)',
         [input.nextSessionId, user.id, input.nextTokenHash, session.family_id, input.expiresAt, input.ip ?? null, input.userAgent ?? null],
       );
-      if (inserted.rowCount !== 1) throw new ServiceUnavailableException('Unable to rotate session');
-
+      if (inserted.rowCount !== 1) throw new UnauthorizedError('Unable to rotate session');
       const updated = await client.query(
         'UPDATE public.refresh_sessions SET revoked_at = now(), replaced_by = $2, last_used_at = now() WHERE id = $1 AND revoked_at IS NULL AND replaced_by IS NULL',
         [session.id, input.nextSessionId],
       );
-      if (updated.rowCount !== 1) throw new ServiceUnavailableException('Refresh session changed concurrently');
+      if (updated.rowCount !== 1) throw new UnauthorizedError('Refresh session changed concurrently');
       return { user, familyId: session.family_id };
     });
+  }
+
+  private throwRefreshReuse(): never {
+    throw new UnauthorizedError('Refresh token reuse detected');
   }
 
   async revokeRefreshSession(id: string): Promise<boolean> {
@@ -201,3 +224,5 @@ export class AuthRepository {
     await this.pool.end();
   }
 }
+
+class UnauthorizedError extends Error {}
