@@ -125,8 +125,9 @@ export class AuthRepository {
       if (!session || session.expires_at <= new Date()) throw new UnauthorizedException('Refresh session invalid or expired');
 
       if (session.revoked_at || session.replaced_by) {
+        // Return a marker so the transaction commits the family revocation before the service rejects reuse.
         await client.query('UPDATE public.refresh_sessions SET revoked_at = COALESCE(revoked_at, now()) WHERE family_id = $1', [session.family_id]);
-        return { reuseDetected: true } as never;
+        return { reuseDetected: true, familyId: session.family_id } as never;
       }
 
       const userResult = await client.query<{
