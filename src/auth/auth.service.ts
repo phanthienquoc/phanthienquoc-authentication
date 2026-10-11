@@ -4,7 +4,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -22,16 +22,16 @@ export class AuthService {
 
   async signup(input: SignupDto) {
     const email = input.email.trim().toLowerCase();
-    const existing = await this.repository.findByEmail(email);
-    if (existing) throw new ConflictException('Unable to create account with these details');
-    const passwordHash = await this.passwords.hash(input.password);
     try {
-      const user = await this.repository.createUser({ email, passwordHash, role: 'USER' });
+      const user = await this.repository.createUser({
+        email, passwordHash: await this.passwords.hash(input.password), role: 'USER',
+      });
       return { user: this.publicUser(user) };
     } catch (error) {
       if ((error as { code?: string })?.code === '23505') {
         throw new ConflictException('Unable to create account with these details');
       }
+      if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException('Account creation unavailable');
     }
   }
@@ -51,18 +51,13 @@ export class AuthService {
     return this.issueLoginForUser(user, context);
   }
 
-  async issueLoginForUser(user: AuthUser, context: {
-    userAgent?: string; ip?: string; response?: Response;
-  }) {
+  async issueLoginForUser(user: AuthUser, context: { userAgent?: string; ip?: string; response?: Response }) {
     const refreshToken = randomBytes(48).toString('base64url');
     await this.repository.createRefreshSession({
-      sessionId: randomUUID(),
-      userId: user.id,
-      familyId: randomUUID(),
+      sessionId: randomUUID(), userId: user.id, familyId: randomUUID(),
       tokenHash: this.passwords.hashToken(refreshToken),
       expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
-      ip: context.ip,
-      userAgent: context.userAgent,
+      ip: context.ip, userAgent: context.userAgent,
     });
     if (context.response) this.setRefreshCookie(context.response, refreshToken);
     return { accessToken: this.jwt.issue(user.id, user.role), refreshToken };
@@ -82,19 +77,18 @@ export class AuthService {
         nextSessionId: randomUUID(),
         nextTokenHash: this.passwords.hashToken(nextToken),
         expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
-        ip: context.ip,
-        userAgent: context.userAgent,
+        ip: context.ip, userAgent: context.userAgent,
       });
+      if ((result as any).reuseDetected) {
+        this.clearRefreshCookie(context.response);
+        throw new UnauthorizedException('Refresh token reuse detected');
+      }
       this.setRefreshCookie(context.response, nextToken);
       return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
     } catch (error) {
       this.clearRefreshCookie(context.response);
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      if (error instanceof ServiceUnavailableException) {
-        throw new UnauthorizedException('Invalid or expired refresh token');
-      }
+      if (error instanceof UnauthorizedException) throw error;
+      if (error instanceof ServiceUnavailableException) throw new UnauthorizedException('Invalid or expired refresh token');
       throw error;
     }
   }
@@ -109,20 +103,15 @@ export class AuthService {
 
   clearRefreshCookie(response: Response) {
     response.cookie('tce_refresh_token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax',
-      path: '/api/auth',
-      maxAge: 0,
+      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax', path: '/api/auth', maxAge: 0,
     });
   }
 
   private setRefreshCookie(response: Response, token: string) {
     response.cookie('tce_refresh_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax',
-      path: '/api/auth',
+      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax', path: '/api/auth',
       maxAge: Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
     });
   }
