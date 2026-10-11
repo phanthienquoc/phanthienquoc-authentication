@@ -8,7 +8,7 @@ create or replace function public.auth_replace_mfa_recovery_codes(
 ) returns void
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 begin
   delete from public.mfa_recovery_codes
@@ -26,7 +26,7 @@ create or replace function public.auth_consume_mfa_recovery_code(
 ) returns boolean
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_id uuid;
@@ -54,7 +54,7 @@ create or replace function public.auth_consume_passkey_challenge(
 ) returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_row public.auth_passkey_challenges%rowtype;
@@ -94,7 +94,7 @@ create or replace function public.auth_rotate_refresh_session(
 ) returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_session public.refresh_sessions%rowtype;
@@ -105,7 +105,10 @@ begin
   where token_hash = p_token_hash
   for update;
 
-  if not found or v_session.expires_at <= now() then
+  if not found then
+    return jsonb_build_object('status', 'invalid');
+  end if;
+  if v_session.expires_at <= now() then
     return jsonb_build_object('status', 'invalid');
   end if;
 
