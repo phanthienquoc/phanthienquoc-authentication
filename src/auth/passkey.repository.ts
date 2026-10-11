@@ -19,14 +19,14 @@ export class PasskeyRepository {
 
   async createChallenge(userId: string | null, challenge: string, purpose: 'registration' | 'authentication') {
     const expiresAt = new Date(Date.now() + 5 * 60_000);
-    await this.query(
+    await this.pool.query(
       'INSERT INTO public.auth_passkey_challenges (user_id,challenge,purpose,expires_at) VALUES ($1,$2,$3,$4)',
       [userId, challenge, purpose, expiresAt],
     );
   }
 
   async consumeChallenge(challenge: string, purpose: 'registration' | 'authentication') {
-    const result = await this.query<{
+    const result = await this.pool.query<{
       id: string; user_id: string | null; challenge: string; purpose: string; expires_at: Date;
     }>(
       `DELETE FROM public.auth_passkey_challenges
@@ -42,7 +42,7 @@ export class PasskeyRepository {
   }
 
   async listForUser(userId: string): Promise<PasskeyCredential[]> {
-    const result = await this.query<PasskeyCredential>(
+    const result = await this.pool.query<PasskeyCredential>(
       'SELECT * FROM public.auth_passkey_credentials WHERE user_id = $1 ORDER BY created_at DESC',
       [userId],
     );
@@ -50,7 +50,7 @@ export class PasskeyRepository {
   }
 
   async findByCredentialId(credentialId: string) {
-    const result = await this.query<PasskeyCredential>(
+    const result = await this.pool.query<PasskeyCredential>(
       'SELECT * FROM public.auth_passkey_credentials WHERE credential_id = $1 LIMIT 1',
       [credentialId],
     );
@@ -58,7 +58,7 @@ export class PasskeyRepository {
   }
 
   async createCredential(input: Omit<PasskeyCredential, 'id' | 'created_at' | 'last_used_at'>) {
-    const result = await this.query<PasskeyCredential>(
+    const result = await this.pool.query<PasskeyCredential>(
       `INSERT INTO public.auth_passkey_credentials
        (user_id,credential_id,public_key,counter,transports,friendly_name)
        VALUES ($1,$2,$3,$4,$5::jsonb,$6) RETURNING *`,
@@ -68,7 +68,7 @@ export class PasskeyRepository {
   }
 
   async updateCredential(id: string, counter: number, transports?: string[]) {
-    const result = await this.query(
+    const result = await this.pool.query(
       `UPDATE public.auth_passkey_credentials
        SET counter = $2, last_used_at = now(), transports = COALESCE($3::jsonb, transports)
        WHERE id = $1 RETURNING id`,
@@ -78,7 +78,7 @@ export class PasskeyRepository {
   }
 
   async rename(userId: string, id: string, friendlyName: string) {
-    const result = await this.query(
+    const result = await this.pool.query(
       'UPDATE public.auth_passkey_credentials SET friendly_name = $3 WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId, friendlyName.trim().slice(0, 80)],
     );
@@ -87,15 +87,11 @@ export class PasskeyRepository {
   }
 
   async remove(userId: string, id: string) {
-    const result = await this.query(
+    const result = await this.pool.query(
       'DELETE FROM public.auth_passkey_credentials WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId],
     );
     if (result.rowCount !== 1) throw new UnauthorizedException('Passkey not found');
     return { ok: true };
-  }
-
-  private async query<T = unknown>(sql: string, params: unknown[] = []) {
-    return this.pool.query<T>(sql, params);
   }
 }
