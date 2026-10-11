@@ -1,5 +1,8 @@
 import {
-  ConflictException, Injectable, ServiceUnavailableException, UnauthorizedException,
+  ConflictException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Response } from 'express';
@@ -23,9 +26,10 @@ export class AuthService {
     if (existing) throw new ConflictException('Unable to create account with these details');
     const passwordHash = await this.passwords.hash(input.password);
     try {
-      const user = await this.repository.createUser({ email, passwordHash, role: 'user' });
+      const user = await this.repository.createUser({ email, passwordHash, role: 'USER' });
       return { user: this.publicUser(user) };
     } catch (error) {
+      // Preserve the database unique index as the race-safe source of truth.
       if ((error as { code?: string })?.code === '23505') {
         throw new ConflictException('Unable to create account with these details');
       }
@@ -33,7 +37,9 @@ export class AuthService {
     }
   }
 
-  async login(input: LoginDto, context: { userAgent?: string; response: Response }) {
+  async login(input: LoginDto, context: {
+    userAgent?: string; ip?: string; response: Response;
+  }) {
     const email = input.email.trim().toLowerCase();
     let user: AuthUser | null;
     try {
@@ -41,15 +47,23 @@ export class AuthService {
     } catch {
       throw new ServiceUnavailableException('Authentication unavailable');
     }
-    if (!user || user.disabledAt || !(await this.passwords.verify(input.password, user.passwordHash))) {
+
+    if (!user || !(await this.passwords.verify(input.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    if (user.mfaEnabled) return { mfaRequired: true, userId: user.id };
 
     const refreshToken = randomBytes(48).toString('base64url');
-    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+    const tokenHash = this.passwords.hashToken(refreshToken);
+    const sessionId = randomUUID();
+    const familyId = randomUUID();
     await this.repository.createRefreshSession({
-      sessionId: randomUUID(), userId: user.id, tokenHash,
+      sessionId,
+      userId: user.id,
+      familyId,
+      tokenHash,
       expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
+      ip: context.ip,
       userAgent: context.userAgent,
     });
     this.setRefreshCookie(context.response, refreshToken);
@@ -58,53 +72,60 @@ export class AuthService {
 
   async me(userId: string) {
     const user = await this.repository.findById(userId);
-    if (!user || user.disabledAt) throw new UnauthorizedException('User not found');
+    if (!user) throw new UnauthorizedException('User not found');
     return { user: this.publicUser(user) };
   }
 
-  async refresh(presentedToken: string, response: Response) {
-    const tokenHash = createHash('sha256').update(presentedToken).digest('hex');
-    const previous = await this.repository.findRefreshSessionByTokenHash(tokenHash);
-    if (!previous || previous.revokedAt || previous.expiresAt <= new Date()) {
-      this.clearRefreshCookie(response);
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-    const revoked = await this.repository.revokeRefreshSession(previous.id);
-    if (!revoked) {
-      this.clearRefreshCookie(response);
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-    const user = await this.repository.findById(previous.userId);
-    if (!user || user.disabledAt) {
-      this.clearRefreshCookie(response);
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+  async refresh(presentedToken: string, context: {
+    response: Response; ip?: string; userAgent?: string;
+  }) {
     const nextToken = randomBytes(48).toString('base64url');
-    await this.repository.createRefreshSession({
-      sessionId: randomUUID(), userId: user.id,
-      tokenHash: createHash('sha256').update(nextToken).digest('hex'),
-      expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
-    });
-    this.setRefreshCookie(response, nextToken);
-    return { accessToken: this.jwt.issue(user.id, user.role) };
+    let result;
+    try {
+      result = await this.repository.rotateRefreshSession({
+        tokenHash: this.passwords.hashToken(presentedToken),
+        nextSessionId: randomUUID(),
+        nextTokenHash: this.passwords.hashToken(nextToken),
+        expiresAt: new Date(Date.now() + Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000),
+        ip: context.ip,
+        userAgent: context.userAgent,
+      });
+    } catch (error) {
+      this.clearRefreshCookie(context.response);
+      if (error instanceof UnauthorizedException) throw error;
+      if (error instanceof ServiceUnavailableException) {
+        // The repository currently reports database/rotation failures through a generic boundary.
+        // Do not expose whether a token hash, user, or account exists.
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+      throw error;
+    }
+
+    this.setRefreshCookie(context.response, nextToken);
+    return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
   }
 
   clearRefreshCookie(response: Response) {
     response.cookie('tce_refresh_token', '', {
-      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax', path: '/api/auth', maxAge: 0,
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      path: '/api/auth',
+      maxAge: 0,
     });
   }
 
   private setRefreshCookie(response: Response, token: string) {
     response.cookie('tce_refresh_token', token, {
-      httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax', path: '/api/auth',
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      path: '/api/auth',
       maxAge: Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
     });
   }
 
   private publicUser(user: AuthUser) {
-    return { id: user.id, email: user.email, role: user.role };
+    return { id: user.id, email: user.email, role: user.role, mfaEnabled: user.mfaEnabled };
   }
 }
