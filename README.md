@@ -90,3 +90,14 @@ Configure server-only variables in the runtime secret/config contract:
 **Keycloak configuration requirement:** configure a client scope / protocol mapper that adds the API audience (for example `nest-api`) to access-token `aud`. Do not weaken or remove audience validation to make a token pass. Keep client secrets out of `NEXT_PUBLIC_*` variables.
 
 This integration is additive and non-breaking: the existing NestJS custom login/session endpoints remain unchanged and continue to be the legacy path until a separately tested migration. Only `/api/oidc/me` currently uses Keycloak validation. Do not route production clients to this endpoint until the Keycloak issuer, audience mapper, roles and end-to-end tests are configured.
+
+
+## Keycloak identity metadata in Supabase
+
+The NestJS service uses the existing `@supabase/supabase-js` server-side client (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) to upsert a minimal record in `public.auth_keycloak_identities` when an authenticated caller requests `GET /api/oidc/me`. Records are keyed by the exact Keycloak issuer and subject, so users from different realms/issuers cannot collide.
+
+Apply `supabase/migrations/20261014000000_keycloak_identity_persistence.sql` to the existing Supabase project before using this endpoint. The migration adds a separate table and does not alter or migrate existing legacy `users`, refresh-session, MFA or passkey records. RLS is enabled and direct `anon`/`authenticated` access is revoked; only the backend service-role client is intended to access this table.
+
+Only identity metadata is persisted: issuer, subject, email, preferred username, email verification status and last authenticated time. **Do not store Keycloak passwords, access tokens, ID tokens, refresh tokens, client secrets or treat stored role snapshots as authorization truth.** Keycloak remains the source of truth for credentials, MFA, sessions and roles; NestJS authorizes requests using the verified access token.
+
+The identity sync is deliberately limited to `/api/oidc/me`, not every guarded API request. Supabase persistence failure returns a service-unavailable response from that endpoint. Existing legacy auth routes are unchanged. This work does not integrate or change TCE Dashboard or Media Generation and does not apply the migration to production automatically.
