@@ -59,12 +59,13 @@ jobs:
       - name: Build and publish image
         id: image
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/microfe-auth
+          IMAGE: ghcr.io/${{ github.repository_owner }}/auth-service/auth
           TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
           docker buildx build \
             --platform linux/arm64 \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --provenance=true \
             --sbom=true \
             --metadata-file /tmp/auth-image.json \
