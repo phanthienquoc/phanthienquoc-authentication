@@ -1,17 +1,18 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+import jwt, { type JwtHeader, type JwtPayload, type SigningKeyCallback } from 'jsonwebtoken';
+import jwksClient from 'jwks-rsa';
 
 export interface KeycloakPrincipal {
   sub: string;
   email?: string;
   preferredUsername?: string;
   roles: string[];
-  claims: JWTPayload;
+  claims: JwtPayload;
 }
 
 @Injectable()
 export class KeycloakTokenService {
-  private jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+  private jwks: ReturnType<typeof jwksClient> | null = null;
   private jwksUri: string | null = null;
 
   private get configuration() {
@@ -22,29 +23,63 @@ export class KeycloakTokenService {
       throw new Error('KEYCLOAK_URL, KEYCLOAK_REALM and KEYCLOAK_AUDIENCE are required to validate Keycloak tokens');
     }
     const issuer = process.env.KEYCLOAK_ISSUER?.trim() || `${baseUrl}/realms/${realm}`;
-    return { baseUrl, realm, audience, issuer, jwksUri: `${issuer}/protocol/openid-connect/certs` };
+    return { audience, issuer, jwksUri: `${issuer}/protocol/openid-connect/certs` };
   }
 
   async verifyAccessToken(token: string): Promise<KeycloakPrincipal> {
     try {
       const config = this.configuration;
       if (!this.jwks || this.jwksUri !== config.jwksUri) {
-        this.jwks = createRemoteJWKSet(new URL(config.jwksUri));
+        this.jwks = jwksClient({
+          jwksUri: config.jwksUri,
+          cache: true,
+          rateLimit: true,
+          jwksRequestsPerMinute: 10,
+          timeout: 5000,
+        });
         this.jwksUri = config.jwksUri;
       }
 
-      const { payload, protectedHeader } = await jwtVerify(token, this.jwks, {
-        issuer: config.issuer,
-        audience: config.audience,
-        algorithms: ['RS256'],
-        clockTolerance: 5,
+      const getKey = (header: JwtHeader, callback: SigningKeyCallback) => {
+        if (header.alg !== 'RS256' || typeof header.kid !== 'string') {
+          callback(new Error('Unsupported signing algorithm or missing key id'));
+          return;
+        }
+        this.jwks!.getSigningKey(header.kid, (error, key) => {
+          if (error || !key) {
+            callback(error ?? new Error('Signing key not found'));
+            return;
+          }
+          callback(null, key.getPublicKey());
+        });
+      };
+
+      const payload = await new Promise<JwtPayload>((resolve, reject) => {
+        jwt.verify(
+          token,
+          getKey,
+          {
+            algorithms: ['RS256'],
+            issuer: config.issuer,
+            audience: config.audience,
+            clockTolerance: 5,
+          },
+          (error, decoded) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            if (!decoded || typeof decoded === 'string') {
+              reject(new Error('Invalid JWT payload'));
+              return;
+            }
+            resolve(decoded);
+          },
+        );
       });
 
-      if (protectedHeader.alg !== 'RS256' || typeof payload.sub !== 'string' || !payload.sub) {
-        throw new Error('Invalid access-token subject or signing algorithm');
-      }
-      if (payload.typ === 'ID') {
-        throw new Error('ID tokens are not accepted as API access tokens');
+      if (typeof payload.sub !== 'string' || !payload.sub || payload.typ === 'ID') {
+        throw new Error('Invalid access-token subject or token type');
       }
 
       const realmRoles = this.stringArray(
