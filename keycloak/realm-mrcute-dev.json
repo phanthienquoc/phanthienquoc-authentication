@@ -1,0 +1,78 @@
+{
+  "realm": "mrcute",
+  "displayName": "MrCute ID",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": true,
+  "bruteForceProtected": true,
+  "clients": [
+    {
+      "clientId": "mr-cute-web",
+      "name": "MrCute ID Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    },
+    {
+      "clientId": "tce-dashboard",
+      "name": "TCE Dashboard",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": ["https://tce.mrcute.space/*"],
+      "webOrigins": ["https://tce.mrcute.space"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://tce.mrcute.space/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    },
+    {
+      "clientId": "media-generation",
+      "name": "Media Generation",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": ["https://media.mrcute.space/*"],
+      "webOrigins": ["https://media.mrcute.space"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://media.mrcute.space/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    }
+  ],
+  "clientScopes": [],
+  "roles": {
+    "realm": [
+      { "name": "user", "description": "Standard authenticated user" },
+      { "name": "admin", "description": "Platform administrator" }
+    ]
+  }
+}
