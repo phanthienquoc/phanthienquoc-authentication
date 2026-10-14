@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -34,7 +35,6 @@ export class KeycloakAuthGuard implements CanActivate {
 
     if (requiredRoles.some((role) => !principal.roles.includes(role))) {
       // Avoid disclosing which role was missing.
-      const { ForbiddenException } = await import('@nestjs/common');
       throw new ForbiddenException('Insufficient role');
     }
 
