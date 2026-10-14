@@ -53,9 +53,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      # Runtime Kubernetes credentials are intentionally not provisioned here.
-      # platform-infra verifies microfe-auth-secrets; an approved secret manager/operator
-      # remains the source of truth. Validate promotion prerequisites before publishing.
+      # Auth owns application build/release only. Production runtime secrets are stored
+      # in platform-infra's protected production Environment and provisioned there.
+      # Never pass runtime secret values through this repository or dispatch payloads.
+      # Validate promotion prerequisites before publishing.
       - name: Validate release and promotion contract
         id: release-contract
         env:
