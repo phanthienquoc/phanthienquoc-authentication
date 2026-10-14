@@ -22,6 +22,8 @@ Required runtime variable:
 
 The `.env.example` documents the remaining CORS, issuer/audience, cookie, passkey and TTL settings. Do not set `DATABASE_URL`; the service no longer uses the Node `pg` driver.
 
+Production secret ownership and the Kubernetes runtime Secret contract are documented in [`docs/production-runtime-secrets.md`](docs/production-runtime-secrets.md).
+
 ## Supabase database setup
 
 Before deploying this version, apply the migration in `supabase/migrations/20261012000000_auth_persistence_rpcs.sql` to the existing Supabase project. It creates restricted, service-role-only RPCs for operations that must remain atomic. It does not create a new database or drop tables/constraints.
