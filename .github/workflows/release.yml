@@ -75,3 +75,23 @@ jobs:
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Published $IMAGE@$DIGEST"
+
+      - name: Request Auth image promotion in platform-infra
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_INFRA_DISPATCH_TOKEN }}
+          TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing PLATFORM_INFRA_DISPATCH_TOKEN; cannot request GitOps promotion."
+            exit 1
+          fi
+
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/phanthienquoc/platform-infra/dispatches" \
+            -f event_type="image-published" \
+            -f "client_payload[app]=auth-service" \
+            -f "client_payload[component]=auth" \
+            -f "client_payload[tag]=$TAG"
+          echo "Requested GitOps promotion for Auth image tag $TAG"

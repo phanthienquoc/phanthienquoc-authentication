@@ -58,7 +58,9 @@ npm run build
 
 - `.github/workflows/ci.yml` runs tests, typecheck and build on feature branches and pull requests.
 - `.github/workflows/release.yml` verifies the service and builds an ARM64 container on `master`, tagged with the exact Git commit SHA. The image includes BuildKit provenance and an SBOM.
-- The release workflow publishes to `ghcr.io/phanthienquoc/microfe-auth:<commit-sha>`. Production deployment is not triggered from this repository; platform-infra must support a verified single-service promotion or an explicitly approved shared rollout.
+- After publishing, Auth sends `repository_dispatch` event `image-published` to `phanthienquoc/platform-infra` with `client_payload.app=auth-service`, `client_payload.component=auth`, and `client_payload.tag=<full-git-sha>`.
+- Configure the Auth repository secret `PLATFORM_INFRA_DISPATCH_TOKEN` with permission to dispatch repository events to `platform-infra`. It is a GitHub integration token, not a Supabase credential. The release job fails closed if this token is missing, so a published image cannot silently skip its deployment handoff.
+- `platform-infra` validates the image and creates a single-file Kustomize promotion PR for Auth. Promotion and production rollout remain gated by infra CI, GHCR pull authorization, runtime secrets, Supabase RPC migration, and health checks.
 
 ## Required integration gates before production
 
