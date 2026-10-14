@@ -76,6 +76,83 @@ jobs:
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Published $IMAGE@$DIGEST"
 
+      - name: Provision Auth runtime credentials and configuration
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          SUPABASE_URL_INPUT: ${{ vars.SUPABASE_URL || vars.MICROFE_SUPABASE_URL || secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY_INPUT: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.MICROFE_SUPABASE_SERVICE_ROLE_KEY || '' }}
+          JWT_SECRET_INPUT: ${{ secrets.JWT_SECRET || secrets.MICROFE_JWT_SECRET || '' }}
+          MFA_ENCRYPTION_KEY_INPUT: ${{ secrets.MFA_ENCRYPTION_KEY || secrets.MICROFE_MFA_ENCRYPTION_KEY || '' }}
+          CORS_ORIGINS: ${{ vars.MICROFE_AUTH_CORS_ORIGINS || 'https://tce.mrcute.space,https://media.mrcute.space' }}
+          JWT_ISSUER: ${{ vars.MICROFE_AUTH_JWT_ISSUER || 'https://auth.mrcute.space' }}
+          JWT_AUDIENCE: ${{ vars.MICROFE_AUTH_JWT_AUDIENCE || 'tce-dashboard,media-generation' }}
+          JWT_ACCESS_TTL_SECONDS: ${{ vars.MICROFE_AUTH_JWT_ACCESS_TTL_SECONDS || '900' }}
+          JWT_REFRESH_TTL_SECONDS: ${{ vars.MICROFE_AUTH_JWT_REFRESH_TTL_SECONDS || '2592000' }}
+          PASSKEY_RP_ID: ${{ vars.MICROFE_AUTH_PASSKEY_RP_ID || 'mrcute.space' }}
+          PASSKEY_RP_NAME: ${{ vars.MICROFE_AUTH_PASSKEY_RP_NAME || 'MRCute' }}
+          PASSKEY_ORIGIN: ${{ vars.MICROFE_AUTH_PASSKEY_ORIGIN || 'https://auth.mrcute.space' }}
+        run: |
+          set -euo pipefail
+          for key_name in VPS_SSH_PRIVATE_KEY SUPABASE_URL_INPUT SUPABASE_SERVICE_ROLE_KEY_INPUT JWT_SECRET_INPUT MFA_ENCRYPTION_KEY_INPUT; do
+            if [ -z "${!key_name:-}" ]; then
+              echo "::error::Missing required Auth runtime setting: $key_name"
+              exit 1
+            fi
+          done
+
+          mkdir -p ~/.ssh
+          printf '%s\\n' "$VPS_SSH_PRIVATE_KEY" | tr -d '\\r' > ~/.ssh/auth_vps_key
+          chmod 600 ~/.ssh/auth_vps_key
+          trap 'rm -f ~/.ssh/auth_vps_key /tmp/auth-k3s.yaml /tmp/auth-secret.json /tmp/auth-configmap.yaml' EXIT
+
+          ssh -i ~/.ssh/auth_vps_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@132.226.175.206 'sudo test -r /etc/rancher/k3s/k3s.yaml'
+          ssh -i ~/.ssh/auth_vps_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no ubuntu@132.226.175.206 'sudo cat /etc/rancher/k3s/k3s.yaml' > /tmp/auth-k3s.yaml
+          sed -i 's#https://127.0.0.1:6443#https://127.0.0.1:6443#' /tmp/auth-k3s.yaml
+          chmod 600 /tmp/auth-k3s.yaml
+          ssh -fNT -i ~/.ssh/auth_vps_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -L 6443:127.0.0.1:6443 ubuntu@132.226.175.206
+          export KUBECONFIG=/tmp/auth-k3s.yaml
+
+          kubectl create namespace microfe-platform --dry-run=client -o yaml | kubectl apply -f -
+
+          encode() { printf '%s' "$1" | base64 | tr -d '\\n'; }
+          supabase_url_b64="$(encode "$SUPABASE_URL_INPUT")"
+          supabase_key_b64="$(encode "$SUPABASE_SERVICE_ROLE_KEY_INPUT")"
+          jwt_b64="$(encode "$JWT_SECRET_INPUT")"
+          mfa_b64="$(encode "$MFA_ENCRYPTION_KEY_INPUT")"
+
+          jq -n \\
+            --arg supabase_url "$supabase_url_b64" \\
+            --arg supabase_key "$supabase_key_b64" \\
+            --arg jwt "$jwt_b64" \\
+            --arg mfa "$mfa_b64" '{
+              apiVersion: "v1",
+              kind: "Secret",
+              metadata: {name: "microfe-auth-secrets", namespace: "microfe-platform"},
+              type: "Opaque",
+              data: {
+                SUPABASE_URL: $supabase_url,
+                SUPABASE_SERVICE_ROLE_KEY: $supabase_key,
+                JWT_SECRET: $jwt,
+                MFA_ENCRYPTION_KEY: $mfa
+              }
+            }' > /tmp/auth-secret.json
+          kubectl apply -f /tmp/auth-secret.json
+
+          kubectl create configmap microfe-auth-config -n microfe-platform \\
+            --from-literal=NODE_ENV=production \\
+            --from-literal=PORT=4010 \\
+            --from-literal=CORS_ORIGINS="$CORS_ORIGINS" \\
+            --from-literal=JWT_ISSUER="$JWT_ISSUER" \\
+            --from-literal=JWT_AUDIENCE="$JWT_AUDIENCE" \\
+            --from-literal=JWT_ACCESS_TTL_SECONDS="$JWT_ACCESS_TTL_SECONDS" \\
+            --from-literal=JWT_REFRESH_TTL_SECONDS="$JWT_REFRESH_TTL_SECONDS" \\
+            --from-literal=PASSKEY_RP_ID="$PASSKEY_RP_ID" \\
+            --from-literal=PASSKEY_RP_NAME="$PASSKEY_RP_NAME" \\
+            --from-literal=PASSKEY_ORIGIN="$PASSKEY_ORIGIN" \\
+            --dry-run=client -o yaml > /tmp/auth-configmap.yaml
+          kubectl apply -f /tmp/auth-configmap.yaml
+          echo "Auth runtime Secret and ConfigMap provisioned; credential values are not printed."
+
       - name: Request Auth image promotion in platform-infra
         env:
           GH_TOKEN: ${{ secrets.PLATFORM_INFRA_DISPATCH_TOKEN }}
