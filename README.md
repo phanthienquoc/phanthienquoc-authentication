@@ -75,3 +75,18 @@ npm run build
 - Deploy immutable image digests through platform-infra, verify readiness and rollout, and prove rollback before switching traffic.
 
 Do not publish database credentials, perform destructive schema changes, or route production users until auth compatibility, integration tests, migration readiness, secret availability and rollback are verified.
+
+
+## Keycloak + NestJS resource-server integration
+
+The NestJS app now exposes a Keycloak-protected identity endpoint at `GET /api/oidc/me`. It validates the bearer access token signature against Keycloak's remote JWKS and checks the exact issuer, required audience, expiry and RS256 algorithm. It rejects malformed/expired tokens and does not accept decode-only JWT parsing. Role claims are extracted from `realm_access.roles` and `resource_access.*.roles`.
+
+Configure server-only variables in the runtime secret/config contract:
+- `KEYCLOAK_URL`: Keycloak base URL reachable from NestJS.
+- `KEYCLOAK_REALM`: realm name.
+- `KEYCLOAK_ISSUER`: exact issuer claim, normally `KEYCLOAK_URL/realms/KEYCLOAK_REALM`.
+- `KEYCLOAK_AUDIENCE`: API audience that must be present in access tokens.
+
+**Keycloak configuration requirement:** configure a client scope / protocol mapper that adds the API audience (for example `nest-api`) to access-token `aud`. Do not weaken or remove audience validation to make a token pass. Keep client secrets out of `NEXT_PUBLIC_*` variables.
+
+This integration is additive and non-breaking: the existing NestJS custom login/session endpoints remain unchanged and continue to be the legacy path until a separately tested migration. Only `/api/oidc/me` currently uses Keycloak validation. Do not route production clients to this endpoint until the Keycloak issuer, audience mapper, roles and end-to-end tests are configured.
