@@ -27,7 +27,7 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/*"
       },
-      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "nest-api-audience"]
     },
     {
       "clientId": "tce-dashboard",
@@ -46,7 +46,7 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "https://tce.mrcute.space/*"
       },
-      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "nest-api-audience"]
     },
     {
       "clientId": "media-generation",
@@ -65,10 +65,33 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "https://media.mrcute.space/*"
       },
-      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "nest-api-audience"]
     }
   ],
-  "clientScopes": [],
+  "clientScopes": [
+    {
+      "name": "nest-api-audience",
+      "description": "Adds the NestJS resource-server audience to access tokens",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "NestJS API audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "nest-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
   "roles": {
     "realm": [
       { "name": "user", "description": "Standard authenticated user" },
