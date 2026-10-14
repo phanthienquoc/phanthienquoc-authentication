@@ -75,6 +75,7 @@ jobs:
           [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Expected a full immutable Git SHA"; exit 1; }
           SHORT_SHA="${TAG:0:7}"
           RELEASE_TAG="prod-v${VERSION}-${SHORT_SHA}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "Validated release contract: $RELEASE_TAG"
 
@@ -89,6 +90,7 @@ jobs:
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/auth-service/auth
           TAG: ${{ github.sha }}
+          VERSION: ${{ steps.release-contract.outputs.version }}
           RELEASE_TAG: ${{ steps.release-contract.outputs.release_tag }}
         run: |
           set -euo pipefail
