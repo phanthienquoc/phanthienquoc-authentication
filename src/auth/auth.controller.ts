@@ -31,7 +31,12 @@ export class AuthController {
   @Get('status')
   async status() {
     const passkeyConfigured = Boolean(process.env.PASSKEY_RP_ID && process.env.PASSKEY_ORIGIN);
-    if (!process.env.DATABASE_URL || !process.env.JWT_SECRET || !process.env.MFA_ENCRYPTION_KEY) {
+    if (
+      !process.env.SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      !process.env.JWT_SECRET ||
+      !process.env.MFA_ENCRYPTION_KEY
+    ) {
       return { configured: false, database: 'not_configured', passkeyConfigured };
     }
     try {
