@@ -62,3 +62,12 @@ The existing Supabase project remains the application data store. Keycloak requi
 - No client secret or server credential in browser bundles or repository.
 - Production deployment is managed through `platform-infra`, immutable images and reviewed GitOps promotion.
 - Existing TCE/Media authentication continues unchanged until explicit cutover approval and a verified rollback.
+
+
+## Supabase SDK persistence for Keycloak identities
+
+NestJS uses the existing server-side `@supabase/supabase-js` client to upsert minimal identity metadata into `public.auth_keycloak_identities` when `GET /api/oidc/me` is called with a valid Keycloak access token. The composite unique key is `(issuer, subject)` to keep identities from separate realms distinct.
+
+Before using the endpoint, review and apply `supabase/migrations/20261014000000_keycloak_identity_persistence.sql` to the intended Supabase project. The migration creates a separate table, enables RLS, and revokes direct access from `anon` and `authenticated`; NestJS accesses it using the server-only service-role key.
+
+This is an application-side identity mapping/profile record, **not Keycloak's internal database**. Passwords, MFA secrets, sessions and token material are not copied into Supabase. Roles remain sourced from each verified Keycloak access token. Existing legacy Auth data and endpoints remain untouched, and the migration is not applied automatically to any live database.

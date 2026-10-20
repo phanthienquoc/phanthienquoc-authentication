@@ -6,6 +6,7 @@ export interface KeycloakPrincipal {
   sub: string;
   email?: string;
   preferredUsername?: string;
+  emailVerified?: boolean;
   roles: string[];
   claims: JwtPayload;
 }
@@ -96,6 +97,7 @@ export class KeycloakTokenService {
         preferredUsername: typeof payload.preferred_username === 'string'
           ? payload.preferred_username
           : undefined,
+        emailVerified: typeof payload.email_verified === 'boolean' ? payload.email_verified : undefined,
         roles: [...new Set([...realmRoles, ...clientRoles])],
         claims: payload,
       };

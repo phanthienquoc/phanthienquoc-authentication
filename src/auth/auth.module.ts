@@ -23,6 +23,13 @@ import { SupabaseClientService } from '../db/supabase.client';
     MfaService,
     MfaCryptoService,
   ],
-  exports: [AuthService, AuthRepository, JwtService, MfaService, MfaCryptoService],
+  exports: [
+    AuthService,
+    AuthRepository,
+    JwtService,
+    MfaService,
+    MfaCryptoService,
+    SupabaseClientService,
+  ],
 })
 export class AuthModule {}
