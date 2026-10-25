@@ -35,6 +35,15 @@ test("directory retains loading, empty, error and keyboard-labelled detail state
   assert.match(page, /aria-label="Close user details"/);
 });
 
+test("directory derives loading and error state from the current request key", () => {
+  assert.ok(page.includes("const requestKey = JSON.stringify([accessToken, user?.role, appliedQuery.trim(), role, page]);"));
+  assert.ok(page.includes("requestState?.key !== requestKey"));
+  assert.ok(page.includes('requestState.status === "error"'));
+  assert.ok(page.includes('setRequestState({ key: requestKey, status: "success" })'));
+  assert.match(page, /key: requestKey,\s+status: "error"/);
+  assert.doesNotMatch(page, /setLoading|setError/);
+});
+
 test("frontend keeps explicit import aliases", () => {
   for (const alias of ["@/*", "@components/*", "@lib/*", "@hooks/*", "@services/*", "@features/*"]) {
     assert.ok(tsconfig.includes(`"${alias}"`), `missing explicit alias ${alias}`);

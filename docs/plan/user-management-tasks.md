@@ -207,6 +207,21 @@
 - **Safety:** No mutation endpoints, schema changes, production migrations/deployments or live account mutations.
 - **Merge verification:** Current `master` matched `edde5b77f63100cd2f38c84ea24271485a12a9be` (compare status identical); auth release remains `workflow_dispatch`-only.
 
+### AUTH-UM-003B — Reset directory loading/error state for each request
+
+- **Priority/status:** P2 / OPEN — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) on `fix/auth-admin-directory-loading-state-verified`; exact-head checks pending.
+- **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
+- **Desired behavior:** Loading and error are derived from the current request key. Query/filter/page changes immediately show loading and hide stale errors; cancelled requests must not overwrite newer state.
+- **Acceptance criteria:**
+  - Derive loading/error from the current request key without synchronous state updates inside effects.
+  - Preserve request cancellation and the read-only NestJS-only API contract.
+  - Add regression coverage for keyed success/error state and stale-state suppression.
+  - Keep the directory response allowlist, explicit TypeScript aliases, and no-mutation UI unchanged.
+- **Validation:** Auth-web CI must pass tests, typecheck, lint, build and container build on the exact PR head; auth-service CI must also pass tests, typecheck, build and container build.
+- **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or account-mutation dependency.
+- **Risk:** Low — UI state transition only. No auth/data-access contract changes.
+- **Safety:** No direct browser-to-Supabase access, mutation endpoints, schema changes, production release, or live account mutation.
+
 ## Release evidence and guardrails
 
 - PR #18's merge triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed image publication and a promotion request. This is not independent proof of production rollout/health; no platform-infra inspection or rollback was performed.
