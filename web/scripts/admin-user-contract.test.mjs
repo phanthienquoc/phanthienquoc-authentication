@@ -43,6 +43,7 @@ test("directory derives loading and error state from the current request key", (
   assert.match(page, /key: requestKey,\s+status: "error"/);
   assert.doesNotMatch(page, /setLoading|setError/);
 });
+
 test("frontend keeps explicit import aliases", () => {
   for (const alias of ["@/*", "@components/*", "@lib/*", "@hooks/*", "@services/*", "@features/*"]) {
     assert.ok(tsconfig.includes(`"${alias}"`), `missing explicit alias ${alias}`);
