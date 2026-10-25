@@ -46,6 +46,22 @@
 - **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge. Readiness now fails closed instead of falsely reporting table-only readiness.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27), [auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql).
 
+### AUTH-SEC-002 — Restrict direct browser-role grants on auth persistence tables
+
+- **Priority/status:** P1 / BLOCKED on AUTH-UM-000 migration provenance and an approved non-production validation target.
+- **Evidence:** Read-only Supabase catalog inspection on 2026-10-26; `public.users`, `public.refresh_sessions`, `public.mfa_recovery_codes`, `public.auth_passkey_credentials`, `public.auth_passkey_challenges`, `public.auth_keycloak_identities`; [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+- **Current behavior:** RLS is enabled on all six tables and the catalog query found no policies. The `anon` and `authenticated` roles nevertheless have direct SELECT/INSERT/UPDATE/DELETE table privileges on `users`, `refresh_sessions`, `mfa_recovery_codes`, and the two passkey tables. With no RLS policies, row access is currently default-denied, but the grants exceed the intended server-only boundary. `auth_keycloak_identities` is restricted to server roles. The legacy refresh/recovery RPCs are executable only by `service_role`/owner.
+- **Desired behavior:** Keep password hashes, MFA state, refresh-session hashes, recovery-code hashes, passkey public-key/counter material and Keycloak identity metadata behind the server-side service-role client or narrowly scoped RPCs; browser roles should have no direct table privileges unless a separately justified, tested policy requires them.
+- **Acceptance criteria:**
+  - [ ] Inspect the web app and shared clients to confirm no browser code depends on direct Supabase table access.
+  - [ ] Reconcile authoritative migration provenance before designing a grant-revocation migration.
+  - [ ] Validate in an approved non-production environment that `anon`/`authenticated` cannot read or mutate auth tables and that the service-role login/refresh/MFA/passkey flows still work.
+  - [ ] Add regression checks for table privileges, RLS/policies and restricted RPC execution; do not apply a migration to the shared live project as part of this task.
+- **Validation:** Read-only `pg_policies`, `has_table_privilege` and `has_function_privilege` queries on 2026-10-26; no account rows were read and no database writes or migrations were performed.
+- **Dependencies:** AUTH-UM-000 and an approved non-production Supabase target.
+- **Risk:** High — revoking grants without confirming the runtime call paths could break authentication, while broad grants are fragile if RLS policy state changes.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
 - **Priority/status:** P1 / DONE for the read-only API foundation — merged on 2026-10-25 at squash SHA `14795baaef7a4b40fbf2d4236f572658cee56c95`.
@@ -61,6 +77,21 @@
 - **Dependencies:** Existing `JwtService`, `SupabaseClientService` and the verified legacy user schema.
 - **Risk:** High — authorization or response-shaping defects could expose account/security data.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+
+### AUTH-UM-001C — Controller authorization and read-only route contract
+
+- **Priority/status:** P1 / MERGED — [PR #42](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/42) squash-merged at `998b73b2fc01795291c00ea3ee0d80d396c5b61d` from exact tested head `d0ddafc5373fb62897c5220f75091f116a3a6324`.
+- **Current behavior:** `UsersManagementController` declares `@UseGuards(AdminGuard)` at controller level and exposes read-only list/detail handlers.
+- **Desired behavior:** Every current admin-directory route stays protected by `AdminGuard`; every route remains GET-only until the authorization and privileged-audit prerequisites for mutations are complete.
+- **Acceptance criteria:**
+  - Assert controller-level guard metadata includes `AdminGuard`.
+  - Assert the existing `list` and `getById` handlers are registered routes.
+  - Assert every registered route handler uses `RequestMethod.GET`; any future POST/PUT/PATCH/DELETE route fails this contract test until deliberately updated with the required security/audit coverage.
+  - Keep legacy NestJS user routes separate from Keycloak identity rows.
+- **Validation:** Auth-service CI [run #40227589102](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40227589102) passed dependency installation, tests, typecheck, build and container build on exact head `d0ddafc5373fb62897c5220f75091f116a3a6324`. Lint is not part of this workflow; no `web/**` files or migrations changed. Default branch verified at merge SHA `998b73b2fc01795291c00ea3ee0d80d396c5b61d`.
+- **Dependencies:** Complements AUTH-UM-001A; does not unblock AUTH-UM-001B audit persistence or UM-2 lifecycle mutations.
+- **Risk:** Low — test-only metadata assertions.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
 ### AUTH-UM-001B — Privileged audit persistence (UM-1 foundation)
 
@@ -83,7 +114,6 @@
 - **Priority/status:** P1 / PARTIALLY DONE — read-only list/detail exists; mutations remain BLOCKED by AUTH-UM-000 and AUTH-UM-001B.
 - **Evidence:** `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/mfa.service.ts`, `src/auth/passkey.service.ts`, `supabase/migrations/`.
 - **Current behavior:** Read-only list/detail endpoints are merged. The live schema recorded in the roadmap has no account-status column or audit table; current session revocation methods target an individual refresh token/session, not all active sessions by user. Role/status/session mutation endpoints are not implemented.
-- **Authentication-path map (source inspection 2026-10-26):** Password login: `AuthService.login` verifies credentials, then either returns client-visible `mfaRequired + userId` or calls `issueLoginForUser`. MFA TOTP/recovery: `AuthController.mfaLogin` / `mfaRecovery` read `userId` from the DTO and then issue a refresh session after second-factor verification; the separate `AUTH-SEC-001` challenge-persistence gate remains open. Refresh: `AuthService.refresh` calls `AuthRepository.rotateRefreshSession` and issues a new access JWT from the RPC-returned user. Passkey login: `PasskeyService.authenticationVerify` consumes `auth_consume_passkey_challenge`, verifies the credential, updates its counter, loads the user, then either returns MFA-pending state or issues a login. Authenticated passkey registration/list/rename/delete use `authenticatedUserId` and currently have no account-status check. `AdminGuard` rechecks the current DB role, but there is no account-status field to enforce suspension. The four source-required RPCs remain absent from the inspected live catalog, so do not infer that these flows work against the shared live schema.
 - **Desired behavior:** Audited role change within policy, reversible suspension/reactivation, and revoke-all-sessions for legacy NestJS accounts only.
 - **Acceptance criteria:**
   - Every mutation is protected by current database-backed admin authorization and an audit record.
@@ -148,7 +178,7 @@
 
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
-- **Priority/status:** P1 / BLOCKED — implementation requires an approved persistent MFA-challenge contract; tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
+- **Priority/status:** P1 / OPEN — cross-cutting auth security follow-up tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
 - **Evidence:** `src/auth/auth.controller.ts` (`mfa/login`, `mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `web/src/features/auth/auth-store.ts`.
 - **Current behavior:** MFA completion accepts `userId + code`; pending MFA state is held in the browser store and is not a server-issued, expiring challenge bound to successful password verification. No explicit NestJS rate-limit guard is visible in this repository.
 - **Desired behavior:** Short-lived, one-time server challenge bound to the user/session, bounded attempts and safe invalidation.
@@ -157,26 +187,9 @@
   - Challenge is one-time, short-lived and bound to the correct user/session; attempts are rate-limited.
   - Recovery codes remain one-time; errors are generic and audit records contain no codes/secrets.
 - **Validation:** Controller/service tests for missing, expired, replayed and cross-user challenges; rate-limit tests; verify gateway rate limiting separately before rollout.
-- **Blocked evidence / recovery:** Current controller/DTO/client contract passes `userId + code`; repository migrations expose `auth_consume_passkey_challenge` for the passkey-specific `auth_passkey_challenges` table but contain no MFA first-factor challenge persistence/RPC (`supabase/migrations/20261012000000_auth_persistence_rpcs.sql`, `20261014000000_keycloak_identity_persistence.sql`). Do not repurpose passkey state for MFA or use a replayable stateless token as a substitute for one-time persistence. AUTH-UM-000 is still blocked on migration provenance and approved non-production validation; no production migration is permitted.
 - **Dependencies:** Coordinate with AUTH-UM-000 RPC/schema reconciliation; preserve existing active-account login contracts with compatibility tests.
 - **Risk:** High — second-factor completion should not be represented solely by client-side state.
 - **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
-
-### AUTH-SEC-002 — Restrict direct browser-role grants on auth persistence tables
-
-- **Priority/status:** P1 / BLOCKED on AUTH-UM-000 migration provenance and an approved non-production validation target.
-- **Evidence:** Read-only Supabase catalog inspection on 2026-10-26; `public.users`, `public.refresh_sessions`, `public.mfa_recovery_codes`, `public.auth_passkey_credentials`, `public.auth_passkey_challenges`, `public.auth_keycloak_identities`; [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
-- **Current behavior:** RLS is enabled on all six tables and the catalog query found no policies. The `anon` and `authenticated` roles nevertheless have direct SELECT/INSERT/UPDATE/DELETE table privileges on `users`, `refresh_sessions`, `mfa_recovery_codes`, and the two passkey tables. With no RLS policies, row access is currently default-denied, but the grants exceed the intended server-only boundary. `auth_keycloak_identities` is restricted to server roles. The legacy refresh/recovery RPCs are executable only by `service_role`/owner.
-- **Desired behavior:** Keep password hashes, MFA state, refresh-session hashes, recovery-code hashes, passkey public-key/counter material and Keycloak identity metadata behind the server-side service-role client or narrowly scoped RPCs; browser roles should have no direct table privileges unless a separately justified, tested policy requires them.
-- **Acceptance criteria:**
-  - [ ] Inspect the web app and shared clients to confirm no browser code depends on direct Supabase table access.
-  - [ ] Reconcile authoritative migration provenance before designing a grant-revocation migration.
-  - [ ] Validate in an approved non-production environment that `anon`/`authenticated` cannot read or mutate auth tables and that the service-role login/refresh/MFA/passkey flows still work.
-  - [ ] Add regression checks for table privileges, RLS/policies and restricted RPC execution; do not apply a migration to the shared live project as part of this task.
-- **Validation:** Read-only `pg_policies`, `has_table_privilege` and `has_function_privilege` queries on 2026-10-26; no account rows were read and no database writes or migrations were performed.
-- **Dependencies:** AUTH-UM-000 and an approved non-production Supabase target.
-- **Risk:** High — revoking grants without confirming the runtime call paths could break authentication, while broad grants are fragile if RLS policy state changes.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
 ### AUTH-UM-001A2 — Normalize thrown admin role-lookup failures
 
@@ -228,18 +241,18 @@
 
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
-- **Priority/status:** P2 / MERGED via [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40).
-- **Tested HEAD:** `fc29ba65bf1c8c9486fa8b1d4122bb1a7231ba38`.
-- **Merge SHA:** `61adb64a71128b8eac2f5ba2ea28181025af6ac1`; current `master` compares identical to this SHA.
-- **Behavior:** Loading/error presentation derives from the active request key; changing search, role, page or access token hides stale errors and derives loading while the new key is unresolved. Only success/error results for the current key are visible, and cancelled requests cannot overwrite newer state.
-- **Acceptance:** Read-only NestJS API preserved; no direct browser-to-Supabase calls, mutation controls, schema changes, or auth/session contract changes.
-- **Validation on exact tested HEAD:**
-  - Auth-web [run #40222012490](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012490) and duplicate run [#40222008726](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222008726): tests, typecheck, lint, build and frontend container build PASS.
-  - Auth-service [run #40222012483](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012483) and duplicate run [#40222008717](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222008717): tests, typecheck, build and service container build PASS.
-  - Supabase Preview was skipped on the PR head because no Supabase branch was associated.
-- **Post-merge integration blocker:** Supabase App check [#121256046060](https://github.com/phanthienquoc/phanthienquoc-authentication/runs/121256046060) failed with `Remote migration versions not found in local migrations directory.` Read-only checks after failure show the non-persistent branch returned to `MIGRATIONS_FAILED`, the ledger still ends at `20261020234922 keycloak_identity_persistence`, and no new auth/runtime tables or migration versions were observed.
-- **Merge safety:** Do not merge further authentication PRs until the Supabase App's merge-time behavior is safely gated or its target is verified non-production. The authoritative artifact for `restrict_auth_rpc_execution` remains missing; UM-0 and UM-1B remain BLOCKED.
-- **Risk/safety:** No production migration/deployment, live account mutation, Keycloak mutation, or trading action was performed intentionally.
+- **Priority/status:** P2 / OPEN — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) on `fix/auth-admin-directory-loading-state-verified`; exact-head checks pending.
+- **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
+- **Desired behavior:** Loading and error are derived from the current request key. Query/filter/page changes immediately show loading and hide stale errors; cancelled requests must not overwrite newer state.
+- **Acceptance criteria:**
+  - Derive loading/error from the current request key without synchronous state updates inside effects.
+  - Preserve request cancellation and the read-only NestJS-only API contract.
+  - Add regression coverage for keyed success/error state and stale-state suppression.
+  - Keep the directory response allowlist, explicit TypeScript aliases, and no-mutation UI unchanged.
+- **Validation:** Auth-web CI must pass tests, typecheck, lint, build and container build on the exact PR head; auth-service CI must also pass tests, typecheck, build and container build.
+- **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or account-mutation dependency.
+- **Risk:** Low — UI state transition only. No auth/data-access contract changes.
+- **Safety:** No direct browser-to-Supabase access, mutation endpoints, schema changes, production release, or live account mutation.
 
 ## Release evidence and guardrails
 
