@@ -20,20 +20,13 @@
 
 ### AUTH-OPS-001 — Prevent unauthorized release promotion from master pushes
 
-- **Priority/status:** P0 / BLOCKED — release trigger must be made safe before merging future service-code changes that match its current paths.
-- **Evidence:** `.github/workflows/release.yml`; [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836); merged API PR #18 at `14795baaef7a4b40fbf2d4236f572658cee56c95`.
-- **Current behavior:** The release workflow runs on pushes to `master` when paths include `src/**`, `test/**`, `package.json`, `Dockerfile` and workflow files. Merging PR #18 triggered run #40209889836, which successfully built/published an ARM64 image and completed the “Request Auth image promotion in platform-infra” step. This proves a promotion request occurred, **not** that production rollout/health was independently verified. No platform-infra inspection or rollback was performed.
-- **Desired behavior:** Source CI and production image publication/promotion are separated so an ordinary code merge cannot implicitly request production rollout without explicit authorization.
-- **Acceptance criteria:**
-  - Inspect the complete release workflow and downstream dispatch contract before changing triggers.
-  - Require explicit, auditable manual dispatch or an approved release gate for image publication/promotion; ordinary pushes must not request production promotion.
-  - Prove that merging the workflow-trigger fix itself will not invoke the old release trigger. Do not merge unless this is demonstrated from the exact workflow/path configuration and checks.
-  - Preserve immutable image tags, validation, credentials isolation and existing CI; do not fabricate secrets or change platform-infra.
-  - Do not run production deployment, migrations, live account mutations or rollback as part of this task.
-- **Validation:** YAML/workflow syntax validation; deterministic trigger/path tests; inspect exact PR head and push-trigger behavior; verify that no release/promotion run starts from a docs-only or ordinary code merge without explicit dispatch.
-- **Dependencies:** None for analysis; a safe workflow change must be independently verified before merging.
-- **Risk:** Critical — unintended release/promotion is a production side effect. No rollout/health claim may be inferred from the successful dispatch job.
-- **Links:** [release workflow](../../.github/workflows/release.yml), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836).
+- **Priority/status:** P0 / DONE — ordinary pushes no longer publish or promote images.
+- **Evidence:** [PR #22](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/22) squash-merged at `ab8e53782d1929880b9ad4df29365d50d86980a6`; current `master` verified at that SHA. Exact tested PR head: `28ec9dfe5f8088d8b93a5ba16aa632879565c109`.
+- **Change:** `.github/workflows/release.yml` now exposes only `workflow_dispatch`. Publishing and the platform-infra promotion request remain available only through an explicit manual dispatch from `master`; ordinary pushes run CI only.
+- **Validation:** [Auth-service CI PR run #40211913021](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40211913021) passed tests, typecheck, build and container build on the exact PR head. Post-merge [auth-service CI run #40212123019](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212123019) also passed on the merge SHA. The diff changed only the release workflow trigger; no release/promotion run was observed for the merge SHA.
+- **Side-effect gate:** Reviewed the prior image publication and promotion steps. The workflow-only merge no longer matches any push trigger. No production deployment, migration, live account mutation or platform-infra change was performed.
+- **Risk/remaining control:** Manual dispatch intentionally retains the ability to publish/promote production images; it must not be dispatched without separate release authorization. The prior [PR #18 release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836) proves only that a promotion request occurred, not that production rollout/health was verified.
+- **Links:** [release workflow](../../.github/workflows/release.yml), [PR #22](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/22).
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
@@ -46,10 +39,10 @@
   - Validate function signatures, grants, RLS/policies, relevant columns and constraints against an approved non-production environment.
   - Add a non-mutating readiness/contract check that fails clearly when required RPCs are absent.
   - Record evidence and recovery options; do not reset, merge, rebase or migrate the shared live project.
-- **Validation:** Read-only catalog diff; targeted repository contract tests; CI test/typecheck/build; verify no database writes occurred.
+- **Validation:** Read-only catalog diff; targeted repository contract tests; CI test/typecheck/build; verify no database writes occurred. On 2026-10-25, the Supabase Preview app check on merge SHA `ab8e53782d1929880b9ad4df29365d50d86980a6` failed with `Remote migration versions not found in local migrations directory.` This is consistent with the already-observed remote/local migration-ledger mismatch; no migration was applied by this run.
 - **Dependencies:** Approved non-production environment and migration provenance evidence.
-- **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql).
+- **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge. The Supabase Preview failure is classified as migration-provenance/environment configuration, not a regression in the workflow-only PR.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql), [merge CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212123019).
 
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
