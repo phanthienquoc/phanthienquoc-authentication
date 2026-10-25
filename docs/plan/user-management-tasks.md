@@ -53,9 +53,9 @@
 
 ### AUTH-UM-002 — Read-only admin user directory UI
 
-- **Priority/status:** P1 / IN PROGRESS — PR #19 remains open; exact-head CI is re-running after typecheck and lint fixes. API dependency PR #18 is now merged.
+- **Priority/status:** P1 / DONE for the read-only UI slice — merged on 2026-10-25 at squash SHA `90bf8fae15676107dfc94fd7452e813593a31e4b`. Mutation controls remain intentionally absent.
 - **Evidence:** `web/src/app/admin/users/page.tsx`, `web/src/services/auth-api.ts`.
-- **Current behavior:** PR #19 adds a client-side admin directory with search, role filtering, pagination and a detail dialog. Initial CI exposed duplicate `ManagedUser`/`ManagedUserPage` declarations, then lint failures for synchronous state updates in an effect and internal anchors. The duplicate declarations were removed; loading is now driven by user actions/async completion and internal navigation uses `next/link`. Exact-head checks are pending.
+- **Current behavior:** PR #19 is merged. The read-only directory provides search, role filtering, pagination and a detail dialog. CI failures were corrected: duplicate API types removed, effect loading state adjusted, and internal navigation uses `next/link`. The page calls only the NestJS API and exposes no mutation controls.
 - **Desired behavior:** A responsive, read-only admin page that consumes only the NestJS API and degrades safely on auth/API errors.
 - **Acceptance criteria:**
   - Exact-head web typecheck, lint, build and container build pass.
@@ -63,7 +63,7 @@
   - No direct browser-to-Supabase access or sensitive fields in the UI.
   - UI role checks remain a UX layer; server-side guard is the authority.
   - PR targets `master` without duplicating backend commits; merge only after API PR #18 is present on `master`.
-- **Validation:** Re-check PR #19 Actions after the duplicate-type fix; inspect exact diff and response contract; verify PR base and mergeability after PR #18 lands.
+- **Validation:** All applicable exact-head `validate` jobs passed on PR #19 head `7ae7ccfe9fa22578aeeb66d3d2795f8af46d4348` before squash merge; `Supabase Preview` was skipped because no preview branch was associated. Confirmed the PR changed only `web/src/app/admin/users/page.tsx` and `web/src/services/auth-api.ts`; API PR #18 was already merged.
 - **Dependencies:** AUTH-UM-001 merged to `master`.
 - **Risk:** Medium — type/contract mismatch or incorrect client-side assumptions can break the admin workflow, but the UI must not replace server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Roadmap](../user-management-roadmap.md).
