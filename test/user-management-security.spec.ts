@@ -43,7 +43,7 @@ describe('User-management security contracts', () => {
   });
 
   it('always creates a USER account even if an untyped caller supplies ADMIN', async () => {
-    const createUser = jest.fn().mockResolvedValue(legacyUser);
+    const createUser = jest.fn().mockResolvedValue({ ...legacyUser, role: 'USER' });
     const hash = jest.fn().mockResolvedValue('test-password-hash');
     const service = new AuthService(
       { createUser } as unknown as AuthRepository,
