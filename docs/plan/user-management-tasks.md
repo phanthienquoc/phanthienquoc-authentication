@@ -209,18 +209,18 @@
 
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
-- **Priority/status:** P2 / OPEN — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) on `fix/auth-admin-directory-loading-state-verified`; exact-head checks pending.
-- **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
-- **Desired behavior:** Loading and error are derived from the current request key. Query/filter/page changes immediately show loading and hide stale errors; cancelled requests must not overwrite newer state.
-- **Acceptance criteria:**
-  - Derive loading/error from the current request key without synchronous state updates inside effects.
-  - Preserve request cancellation and the read-only NestJS-only API contract.
-  - Add regression coverage for keyed success/error state and stale-state suppression.
-  - Keep the directory response allowlist, explicit TypeScript aliases, and no-mutation UI unchanged.
-- **Validation:** Auth-web CI must pass tests, typecheck, lint, build and container build on the exact PR head; auth-service CI must also pass tests, typecheck, build and container build.
-- **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or account-mutation dependency.
-- **Risk:** Low — UI state transition only. No auth/data-access contract changes.
-- **Safety:** No direct browser-to-Supabase access, mutation endpoints, schema changes, production release, or live account mutation.
+- **Priority/status:** P2 / MERGED via [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40).
+- **Tested HEAD:** `fc29ba65bf1c8c9486fa8b1d4122bb1a7231ba38`.
+- **Merge SHA:** `61adb64a71128b8eac2f5ba2ea28181025af6ac1`; current `master` compares identical to this SHA.
+- **Behavior:** Loading/error presentation derives from the active request key; changing search, role, page or access token hides stale errors and derives loading while the new key is unresolved. Only success/error results for the current key are visible, and cancelled requests cannot overwrite newer state.
+- **Acceptance:** Read-only NestJS API preserved; no direct browser-to-Supabase calls, mutation controls, schema changes, or auth/session contract changes.
+- **Validation on exact tested HEAD:**
+  - Auth-web [run #40222012490](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012490) and duplicate run [#40222008726](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222008726): tests, typecheck, lint, build and frontend container build PASS.
+  - Auth-service [run #40222012483](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012483) and duplicate run [#40222008717](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222008717): tests, typecheck, build and service container build PASS.
+  - Supabase Preview was skipped on the PR head because no Supabase branch was associated.
+- **Post-merge integration blocker:** Supabase App check [#121256046060](https://github.com/phanthienquoc/phanthienquoc-authentication/runs/121256046060) failed with `Remote migration versions not found in local migrations directory.` Read-only checks after failure show the non-persistent branch returned to `MIGRATIONS_FAILED`, the ledger still ends at `20261020234922 keycloak_identity_persistence`, and no new auth/runtime tables or migration versions were observed.
+- **Merge safety:** Do not merge further authentication PRs until the Supabase App's merge-time behavior is safely gated or its target is verified non-production. The authoritative artifact for `restrict_auth_rpc_execution` remains missing; UM-0 and UM-1B remain BLOCKED.
+- **Risk/safety:** No production migration/deployment, live account mutation, Keycloak mutation, or trading action was performed intentionally.
 
 ## Release evidence and guardrails
 
