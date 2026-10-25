@@ -18,16 +18,28 @@ export class UsersManagementService {
     const limit = input.limit ?? 25;
     const from = (page - 1) * limit;
     const to = from + limit - 1;
-    let query = this.supabase.db
-      .from('users')
-      .select('id,email,role,mfa_enabled', { count: 'exact' })
-      .order('email', { ascending: true })
-      .range(from, to);
+    let data: ManagedUserRow[] | null = null;
+    let error: unknown = null;
+    let count: number | null = null;
 
-    if (input.role) query = query.eq('role', input.role);
-    if (input.query) query = query.ilike('email', `%${input.query}%`);
+    try {
+      let query = this.supabase.db
+        .from('users')
+        .select('id,email,role,mfa_enabled', { count: 'exact' })
+        .order('email', { ascending: true })
+        .range(from, to);
 
-    const { data, error, count } = await query.returns<ManagedUserRow[]>();
+      if (input.role) query = query.eq('role', input.role);
+      if (input.query) query = query.ilike('email', `%${input.query}%`);
+
+      const result = await query.returns<ManagedUserRow[]>();
+      data = result.data;
+      error = result.error;
+      count = result.count;
+    } catch {
+      throw new ServiceUnavailableException('Unable to load user directory');
+    }
+
     if (error) throw new ServiceUnavailableException('Unable to load user directory');
 
     return {
@@ -40,11 +52,20 @@ export class UsersManagementService {
   }
 
   async getById(id: string) {
-    const { data, error } = await this.supabase.db
-      .from('users')
-      .select('id,email,role,mfa_enabled')
-      .eq('id', id)
-      .maybeSingle<ManagedUserRow>();
+    let data: ManagedUserRow | null = null;
+    let error: unknown = null;
+
+    try {
+      const result = await this.supabase.db
+        .from('users')
+        .select('id,email,role,mfa_enabled')
+        .eq('id', id)
+        .maybeSingle<ManagedUserRow>();
+      data = result.data;
+      error = result.error;
+    } catch {
+      throw new ServiceUnavailableException('Unable to load user details');
+    }
 
     if (error) throw new ServiceUnavailableException('Unable to load user details');
     if (!data) return null;
