@@ -7,6 +7,7 @@ import { PasswordService } from '../src/auth/password.service';
 import { SignupDto } from '../src/auth/dto/signup.dto';
 import { SupabaseClientService } from '../src/db/supabase.client';
 import { UsersManagementService } from '../src/users/users-management.service';
+import { ListUsersDto } from '../src/users/dto/list-users.dto';
 
 describe('User-management security contracts', () => {
   const legacyUser: AuthUser = {
@@ -49,6 +50,63 @@ describe('User-management security contracts', () => {
       },
     });
     expect(query.select).toHaveBeenCalledWith('id,email,role,mfa_enabled');
+  });
+
+  it('returns only allowlisted fields from the paginated admin list', async () => {
+    const query = {
+      select: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      range: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      ilike: jest.fn().mockReturnThis(),
+      returns: jest.fn().mockResolvedValue({
+        data: [{
+          id: 'user-2',
+          email: 'person@example.com',
+          role: 'USER',
+          mfa_enabled: true,
+          password_hash: 'must-not-escape',
+          mfa_secret_encrypted: 'must-not-escape',
+        }],
+        error: null,
+        count: 1,
+      }),
+    };
+    const supabase = {
+      db: { from: jest.fn().mockReturnValue(query) },
+    } as unknown as SupabaseClientService;
+    const service = new UsersManagementService(supabase);
+
+    await expect(service.list({
+      query: 'person',
+      role: 'USER',
+      page: 2,
+      limit: 50,
+    } as ListUsersDto)).resolves.toEqual({
+      items: [{
+        id: 'user-2',
+        email: 'person@example.com',
+        role: 'USER',
+        mfaEnabled: true,
+      }],
+      page: 2,
+      limit: 50,
+      total: 1,
+      totalPages: 1,
+    });
+
+    expect(supabase.db.from).toHaveBeenCalledWith('users');
+    expect(query.select).toHaveBeenCalledWith('id,email,role,mfa_enabled', { count: 'exact' });
+    expect(query.order).toHaveBeenCalledWith('email', { ascending: true });
+    expect(query.range).toHaveBeenCalledWith(50, 99);
+    expect(query.eq).toHaveBeenCalledWith('role', 'USER');
+    expect(query.ilike).toHaveBeenCalledWith('email', '%person%');
+  });
+
+  it('rejects admin directory page sizes above the configured maximum', async () => {
+    const input = plainToInstance(ListUsersDto, { page: 1, limit: 101 });
+    const errors = await validate(input);
+    expect(errors.map((error) => error.property)).toContain('limit');
   });
 
   it('rejects caller-supplied role fields during signup DTO validation', async () => {
