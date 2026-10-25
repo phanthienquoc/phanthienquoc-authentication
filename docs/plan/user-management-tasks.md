@@ -61,6 +61,21 @@
 - **Risk:** High — authorization or response-shaping defects could expose account/security data.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
+### AUTH-UM-001C — Controller authorization and read-only route contract
+
+- **Priority/status:** P1 / IN PR — regression tests only; no runtime, schema, grant, migration or endpoint changes.
+- **Current behavior:** `UsersManagementController` declares `@UseGuards(AdminGuard)` at controller level and exposes read-only list/detail handlers.
+- **Desired behavior:** Every current admin-directory route stays protected by `AdminGuard`; every route remains GET-only until the authorization and privileged-audit prerequisites for mutations are complete.
+- **Acceptance criteria:**
+  - Assert controller-level guard metadata includes `AdminGuard`.
+  - Assert the existing `list` and `getById` handlers are registered routes.
+  - Assert every registered route handler uses `RequestMethod.GET`; any future POST/PUT/PATCH/DELETE route fails this contract test until deliberately updated with the required security/audit coverage.
+  - Keep legacy NestJS user routes separate from Keycloak identity rows.
+- **Validation:** Auth-service CI tests, typecheck, lint, build and container build; no database connection or migration needed by this test.
+- **Dependencies:** Complements AUTH-UM-001A; does not unblock AUTH-UM-001B audit persistence or UM-2 lifecycle mutations.
+- **Risk:** Low — test-only metadata assertions.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+
 ### AUTH-UM-001B — Privileged audit persistence (UM-1 foundation)
 
 - **Priority/status:** P1 / BLOCKED on non-production schema validation.
