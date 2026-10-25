@@ -35,6 +35,17 @@ test("directory retains loading, empty, error and keyboard-labelled detail state
   assert.match(page, /aria-label="Close user details"/);
 });
 
+test("directory resets loading and stale errors for every list request", () => {
+  const effect = page.match(
+    /useEffect\\(\\(\\) => \\{\\s*if \\(!accessToken \\|\\| user\\?\\.role !== "ADMIN"\\) return;([\\s\\S]*?)\\n  \\}, \\[accessToken, user\\?\\.role, appliedQuery, role, page\\]\\);/,
+  );
+  assert.ok(effect, "admin directory request effect should be present");
+  const requestIndex = effect[1].indexOf("void authApi.adminUsers");
+  assert.notEqual(requestIndex, -1, "directory request should be issued");
+  assert.ok(effect[1].indexOf("setLoading(true)") < requestIndex);
+  assert.ok(effect[1].indexOf("setError(null)") < requestIndex);
+});
+
 test("frontend keeps explicit import aliases", () => {
   for (const alias of ["@/*", "@components/*", "@lib/*", "@hooks/*", "@services/*", "@features/*"]) {
     assert.ok(tsconfig.includes(`"${alias}"`), `missing explicit alias ${alias}`);
