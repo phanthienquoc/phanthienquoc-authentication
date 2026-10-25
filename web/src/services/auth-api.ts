@@ -1,4 +1,5 @@
 import type { ApiError, AuthResult, AuthUser } from "@lib/auth/types";
+import { buildAdminUsersPath } from "../../scripts/admin-user-query.mjs";
 
 const API_URL = (process.env.NEXT_PUBLIC_AUTH_API_URL ?? "https://auth.mrcute.space").replace(/\/$/, "");
 
@@ -38,7 +39,6 @@ export type ManagedUserPage = {
   totalPages: number;
 };
 
-
 export const authApi = {
   login: (email: string, password: string) =>
     request<AuthResult>("/auth/login", {
@@ -54,10 +54,8 @@ export const authApi = {
     request<{ user: AuthUser }>("/auth/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     }),
-  refresh: () =>
-    request<AuthResult>("/auth/refresh", { method: "POST" }),
-  logout: () =>
-    request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
+  refresh: () => request<AuthResult>("/auth/refresh", { method: "POST" }),
+  logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   status: () =>
     request<{ configured: boolean; database: string; passkeyConfigured: boolean }>("/auth/status"),
   mfaLogin: (userId: string, code: string) =>
@@ -70,16 +68,13 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ userId, code }),
     }),
-  adminUsers: (accessToken: string, params: { query?: string; role?: "USER" | "ADMIN"; page?: number; limit?: number } = {}) => {
-    const search = new URLSearchParams();
-    if (params.query) search.set("query", params.query);
-    if (params.role) search.set("role", params.role);
-    search.set("page", String(params.page ?? 1));
-    search.set("limit", String(params.limit ?? 25));
-    return request<ManagedUserPage>(`/api/admin/users?${search.toString()}`, {
+  adminUsers: (
+    accessToken: string,
+    params: { query?: string; role?: "USER" | "ADMIN"; page?: number; limit?: number } = {},
+  ) =>
+    request<ManagedUserPage>(buildAdminUsersPath(params), {
       headers: { Authorization: `Bearer ${accessToken}` },
-    });
-  },
+    }),
   adminUser: (accessToken: string, id: string) =>
     request<{ user: ManagedUser }>(`/api/admin/users/${encodeURIComponent(id)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
