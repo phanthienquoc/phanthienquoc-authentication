@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { authApi, type ManagedUser } from "@services/auth-api";
 import { useAuthStore } from "@features/auth/auth-store";
 
@@ -24,8 +25,6 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (!accessToken || user?.role !== "ADMIN") return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     void authApi.adminUsers(accessToken, {
       query: appliedQuery.trim() || undefined,
       role: role || undefined,
@@ -36,19 +35,26 @@ export default function AdminUsersPage() {
       setItems(result.items);
       setTotal(result.total);
       setTotalPages(result.totalPages);
-      if (selected && !result.items.some((item) => item.id === selected.id)) setSelected(null);
+      setSelected((current) =>
+        current && !result.items.some((item) => item.id === current.id) ? null : current,
+      );
     }).catch((cause: unknown) => {
       if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load users.");
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [accessToken, user?.role, appliedQuery, role, page, selected]);
+  }, [accessToken, user?.role, appliedQuery, role, page]);
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setAppliedQuery(query.trim());
-    setPage(1);
+    const nextQuery = query.trim();
+    if (nextQuery !== appliedQuery || page !== 1) {
+      setLoading(true);
+      setError(null);
+      setAppliedQuery(nextQuery);
+      setPage(1);
+    }
   }
 
   if (authLoading && !accessToken) {
@@ -62,7 +68,7 @@ export default function AdminUsersPage() {
           <p className="text-xs font-semibold uppercase tracking-[.24em] text-[var(--brand)]">MrCute ID · Admin</p>
           <h1 className="mt-4 text-3xl font-semibold">Sign in required</h1>
           <p className="mt-3 text-[var(--muted)]">Sign in with an administrator account to access user management.</p>
-          <a className="mt-6 inline-flex rounded-xl bg-[var(--brand)] px-5 py-3 font-semibold text-black" href="/">Go to sign in</a>
+          <Link className="mt-6 inline-flex rounded-xl bg-[var(--brand)] px-5 py-3 font-semibold text-black" href="/">Go to sign in</Link>
         </section>
       </main>
     );
@@ -75,7 +81,7 @@ export default function AdminUsersPage() {
           <p className="text-xs font-semibold uppercase tracking-[.24em] text-[var(--brand)]">MrCute ID · Admin</p>
           <h1 className="mt-4 text-3xl font-semibold">Access restricted</h1>
           <p className="mt-3 text-[var(--muted)]">Your account does not have administrator access.</p>
-          <a className="mt-6 inline-flex rounded-xl border border-[var(--line)] px-5 py-3 font-semibold" href="/">Back to account</a>
+          <Link className="mt-6 inline-flex rounded-xl border border-[var(--line)] px-5 py-3 font-semibold" href="/">Back to account</Link>
         </section>
       </main>
     );
@@ -89,7 +95,7 @@ export default function AdminUsersPage() {
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">User management</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">Legacy NestJS accounts · Read-only directory</p>
         </div>
-        <a href="/" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-white">Back to account</a>
+        <Link href="/" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-white">Back to account</Link>
       </header>
 
       <section className="mt-7 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 sm:p-6">
@@ -99,7 +105,15 @@ export default function AdminUsersPage() {
             placeholder="Search email…" autoComplete="off"
             className="min-w-0 rounded-xl border border-[var(--line)] bg-black/20 px-4 py-3 outline-none focus:border-[var(--brand)]" />
           <label className="sr-only" htmlFor="role-filter">Filter by role</label>
-          <select id="role-filter" value={role} onChange={(event) => { setRole(event.target.value as "" | "USER" | "ADMIN"); setPage(1); }}
+          <select id="role-filter" value={role} onChange={(event) => {
+              const nextRole = event.target.value as "" | "USER" | "ADMIN";
+              if (nextRole !== role || page !== 1) {
+                setLoading(true);
+                setError(null);
+                setRole(nextRole);
+                setPage(1);
+              }
+            }}
             className="rounded-xl border border-[var(--line)] bg-[#111722] px-4 py-3 outline-none focus:border-[var(--brand)]">
             <option value="">All roles</option>
             <option value="USER">User</option>
@@ -141,9 +155,9 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
-          <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1 || loading}
+          <button type="button" onClick={() => { if (page > 1) { setLoading(true); setError(null); setPage(page - 1); } }} disabled={page <= 1 || loading}
             className="rounded-xl border border-[var(--line)] px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-          <button type="button" onClick={() => setPage((value) => Math.min(Math.max(totalPages, 1), value + 1))} disabled={page >= totalPages || loading}
+          <button type="button" onClick={() => { if (page < totalPages) { setLoading(true); setError(null); setPage(page + 1); } }} disabled={page >= totalPages || loading}
             className="rounded-xl border border-[var(--line)] px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
         </div>
       </section>
