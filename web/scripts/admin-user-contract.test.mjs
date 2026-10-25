@@ -40,3 +40,17 @@ test("frontend keeps explicit import aliases", () => {
     assert.ok(tsconfig.includes(`"${alias}"`), `missing explicit alias ${alias}`);
   }
 });
+
+test("detail dialog supports Escape, focus containment and focus restoration", () => {
+  assert.ok(page.includes("const dialogRef = useRef<HTMLElement | null>(null)"));
+  assert.ok(page.includes("closeButtonRef.current?.focus()"));
+  assert.ok(page.includes('event.key === "Escape"'));
+  assert.ok(page.includes('event.key !== "Tab"'));
+  assert.ok(page.includes("dialog?.querySelectorAll<HTMLElement>(focusableSelector)"));
+  assert.ok(page.includes("last.focus()"));
+  assert.ok(page.includes("first.focus()"));
+  assert.ok(page.includes("returnTarget.focus()"));
+  assert.ok(page.includes("returnFocusRef.current = event.currentTarget"));
+  assert.ok(page.includes('ref={dialogRef} role="dialog" aria-modal="true"'));
+  assert.ok(page.includes("ref={closeButtonRef}"));
+});

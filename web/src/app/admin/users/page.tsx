@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { authApi, type ManagedUser } from "@services/auth-api";
 import { useAuthStore } from "@features/auth/auth-store";
@@ -17,6 +17,10 @@ export default function AdminUsersPage() {
   const [selected, setSelected] = useState<ManagedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     void restoreSession();
@@ -45,6 +49,54 @@ export default function AdminUsersPage() {
     });
     return () => { cancelled = true; };
   }, [accessToken, user?.role, appliedQuery, role, page]);
+
+  useEffect(() => {
+    if (!selected) return;
+
+    const dialog = dialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    closeButtonRef.current?.focus();
+
+    function onDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = dialog?.querySelectorAll<HTMLElement>(focusableSelector);
+      if (!focusable || focusable.length === 0) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog?.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog?.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onDialogKeyDown);
+      const returnTarget = returnFocusRef.current ?? previouslyFocused;
+      if (returnTarget?.isConnected) returnTarget.focus();
+      returnFocusRef.current = null;
+    };
+  }, [selected]);
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -144,7 +196,7 @@ export default function AdminUsersPage() {
                 : items.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--muted)]">No accounts found.</td></tr>
                 : items.map((item) => (
                   <tr key={item.id} className="border-t border-[var(--line)] hover:bg-white/[.025]">
-                    <td className="px-4 py-3"><button type="button" onClick={() => setSelected(item)} className="break-all text-left font-medium underline decoration-[var(--line)] underline-offset-4 hover:decoration-[var(--brand)]">{item.email}</button></td>
+                    <td className="px-4 py-3"><button type="button" onClick={(event) => { returnFocusRef.current = event.currentTarget; setSelected(item); }} className="break-all text-left font-medium underline decoration-[var(--line)] underline-offset-4 hover:decoration-[var(--brand)]">{item.email}</button></td>
                     <td className="px-4 py-3"><span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-xs">{item.role}</span></td>
                     <td className="px-4 py-3">{item.mfaEnabled ? "Enabled" : "Not enabled"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{item.id}</td>
@@ -164,10 +216,10 @@ export default function AdminUsersPage() {
 
       {selected && (
         <div className="fixed inset-0 z-10 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="user-detail-title" className="w-full max-w-lg rounded-t-3xl border border-[var(--line)] bg-[var(--panel)] p-6 sm:rounded-3xl">
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="user-detail-title" tabIndex={-1} className="w-full max-w-lg rounded-t-3xl border border-[var(--line)] bg-[var(--panel)] p-6 sm:rounded-3xl">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--brand)]">Account details</p><h2 id="user-detail-title" className="mt-2 text-xl font-semibold">User profile</h2></div>
-              <button type="button" onClick={() => setSelected(null)} aria-label="Close user details" className="rounded-lg border border-[var(--line)] px-3 py-1.5">Close</button>
+              <button ref={closeButtonRef} type="button" onClick={() => setSelected(null)} aria-label="Close user details" className="rounded-lg border border-[var(--line)] px-3 py-1.5">Close</button>
             </div>
             <dl className="mt-6 space-y-4 text-sm">
               <div><dt className="text-[var(--muted)]">Email</dt><dd className="mt-1 break-all">{selected.email}</dd></div>

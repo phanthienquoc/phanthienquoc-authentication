@@ -110,6 +110,23 @@
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
 
+
+### AUTH-UM-003A — Keyboard-accessible read-only user detail dialog
+
+- **Priority/status:** P2 / IN PROGRESS — dependency-safe UI accessibility slice; no lifecycle mutation controls.
+- **Evidence:** web/src/app/admin/users/page.tsx, web/scripts/admin-user-contract.test.mjs.
+- **Current behavior:** The read-only detail panel has dialog semantics and a close button but does not yet manage initial focus, contain keyboard tabbing, dismiss with Escape, or restore focus to the row that opened it.
+- **Desired behavior:** Opening the panel focuses its close control; Tab/Shift+Tab remain inside the modal dialog; Escape closes it; closing restores focus to the originating account row.
+- **Acceptance criteria:**
+  - Preserve the read-only directory and current API contract; no mutation UI.
+  - Use accessible dialog semantics and keyboard dismissal.
+  - Keep focus inside the open dialog and restore focus to the trigger after close.
+  - Add regression coverage for the keyboard/focus contract without adding an unapproved test dependency.
+- **Validation:** Pending exact-head auth-web CI (npm test, npm run typecheck, npm run lint, npm run build, frontend container build) and auth-service CI. Source-level contract tests do not replace browser-level interaction testing; that remains a separate follow-up if no supported browser harness exists.
+- **Dependencies:** Existing read-only UM-3 UI; no schema or audit dependencies.
+- **Risk:** Low to medium — incorrect focus cleanup could leave keyboard users outside the modal; no server authorization or data-access behavior changes.
+- **Safety:** No Supabase access added to the browser, no schema changes, no production release or account mutations.
+
 ### AUTH-UM-004 — Non-production security/integration gate (UM-4)
 
 - **Priority/status:** P1 / BLOCKED until AUTH-UM-000 through AUTH-UM-003 gates are resolved and a non-production Supabase environment is available.
