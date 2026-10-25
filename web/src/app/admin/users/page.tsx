@@ -216,9 +216,9 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
-          <button type="button" onClick={() => { if (page > 1) { setLoading(true); setError(null); setPage(page - 1); } }} disabled={page <= 1 || loading}
+          <button type="button" onClick={() => { if (page > 1) setPage(page - 1); }} disabled={page <= 1 || loading}
             className="rounded-xl border border-[var(--line)] px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
-          <button type="button" onClick={() => { if (page < totalPages) { setLoading(true); setError(null); setPage(page + 1); } }} disabled={page >= totalPages || loading}
+          <button type="button" onClick={() => { if (page < totalPages) setPage(page + 1); }} disabled={page >= totalPages || loading}
             className="rounded-xl border border-[var(--line)] px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
         </div>
       </section>
