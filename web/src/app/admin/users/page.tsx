@@ -7,6 +7,7 @@ import { useAuthStore } from "@features/auth/auth-store";
 export default function AdminUsersPage() {
   const { accessToken, user, loading: authLoading, restoreSession } = useAuthStore();
   const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
   const [role, setRole] = useState<"" | "USER" | "ADMIN">("");
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<ManagedUser[]>([]);
@@ -26,7 +27,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     void authApi.adminUsers(accessToken, {
-      query: query.trim() || undefined,
+      query: appliedQuery.trim() || undefined,
       role: role || undefined,
       page,
       limit: 25,
@@ -42,10 +43,11 @@ export default function AdminUsersPage() {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [accessToken, user?.role, query, role, page, selected]);
+  }, [accessToken, user?.role, appliedQuery, role, page, selected]);
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setAppliedQuery(query.trim());
     setPage(1);
   }
 
@@ -93,7 +95,7 @@ export default function AdminUsersPage() {
       <section className="mt-7 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 sm:p-6">
         <form onSubmit={onSearch} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
           <label className="sr-only" htmlFor="user-search">Search by email</label>
-          <input id="user-search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+          <input id="user-search" value={query} onChange={(event) => setQuery(event.target.value)}
             placeholder="Search email…" autoComplete="off"
             className="min-w-0 rounded-xl border border-[var(--line)] bg-black/20 px-4 py-3 outline-none focus:border-[var(--brand)]" />
           <label className="sr-only" htmlFor="role-filter">Filter by role</label>
