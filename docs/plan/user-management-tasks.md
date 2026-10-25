@@ -158,6 +158,22 @@
 - **Risk:** High — second-factor completion should not be represented solely by client-side state.
 - **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
 
+### AUTH-UM-001A3 — Regression coverage for admin user list projection and pagination
+
+- **Priority/status:** P1 / IN PR — test-only security-contract slice; exact-head CI pending.
+- **Evidence:** `test/user-management-security.spec.ts`, `src/users/users-management.service.ts`, `src/users/dto/list-users.dto.ts`.
+- **Current behavior:** The list service maps fields through an allowlist and the DTO caps page size at 100, but existing tests covered detail redaction more directly than list redaction/filtering/pagination.
+- **Desired behavior:** Prevent regressions that expose sensitive user fields or break bounded, deterministic directory queries.
+- **Acceptance criteria:**
+  - [x] Test that list output excludes mocked password hash and encrypted MFA secret values.
+  - [x] Assert safe select projection, email ordering, role/email filters and page range.
+  - [x] Assert page size above 100 is rejected by DTO validation.
+  - [ ] Complete exact-head backend tests, typecheck, lint, build and container build.
+- **Dependencies:** Existing read-only UM-1A API; no schema or audit dependency.
+- **Risk:** Low — tests only; no runtime behavior or access boundary changes.
+- **Safety:** No mutation endpoint, migration, production deployment or live account mutation.
+- **PR:** [#32](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/32); status remains IN PR until CI evidence is green.
+
 ## Release evidence and guardrails
 
 - PR #18's merge triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed image publication and a promotion request. This is not independent proof of production rollout/health; no platform-infra inspection or rollback was performed.
