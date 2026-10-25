@@ -225,7 +225,7 @@
 
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
-- **Priority/status:** P2 / OPEN — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) on `fix/auth-admin-directory-loading-state-verified`; exact-head checks pending.
+- **Priority/status:** P2 / MERGED — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) squash-merged at `61adb64a71128b8eac2f5ba2ea28181025af6ac1` from exact tested HEAD `fc29ba65bf1c8c9486fa8b1d4122bb1a7231ba38`. Auth-web CI [#40222012490](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012490) and auth-service CI [#40222012483](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012483) passed; post-merge master runs [#40222175812](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222175812) and [#40222175883](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222175883) passed.
 - **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
 - **Desired behavior:** Loading and error are derived from the current request key. Query/filter/page changes immediately show loading and hide stale errors; cancelled requests must not overwrite newer state.
 - **Acceptance criteria:**
