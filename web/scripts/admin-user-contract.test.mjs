@@ -46,9 +46,13 @@ test("directory resets loading and stale errors for every list request", () => {
   assert.notEqual(effectEnd, -1, "admin directory request effect should close");
   const effect = page.slice(effectStart, effectEnd);
   const requestIndex = effect.indexOf("void authApi.adminUsers");
+  const loadingIndex = effect.indexOf("setLoading(true)");
+  const errorIndex = effect.indexOf("setError(null)");
   assert.notEqual(requestIndex, -1, "directory request should be issued");
-  assert.ok(effect.indexOf("setLoading(true)") < requestIndex);
-  assert.ok(effect.indexOf("setError(null)") < requestIndex);
+  assert.notEqual(loadingIndex, -1, "each request should show loading");
+  assert.notEqual(errorIndex, -1, "each request should clear stale errors");
+  assert.ok(loadingIndex < requestIndex);
+  assert.ok(errorIndex < requestIndex);
 });
 
 test("frontend keeps explicit import aliases", () => {
