@@ -192,19 +192,19 @@
 
 ### AUTH-UM-001A4 — Normalize thrown admin directory query failures
 
-- **Priority/status:** P1 / IN PR — read-only admin API hardening; exact-head CI pending.
-- **Evidence:** `src/users/users-management.service.ts`, `test/user-management-security.spec.ts`; follows AUTH-UM-001A2.
-- **Current behavior:** Returned Supabase errors are normalized to safe 503 responses, but thrown list/detail query failures can escape with dependency-specific error details.
-- **Desired behavior:** Any thrown list/detail persistence failure denies the read and returns the same safe error message as a returned Supabase error.
+- **Priority/status:** P1 / MERGED — [PR #36](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/36) squash-merged at `edde5b77f63100cd2f38c84ea24271485a12a9be`; exact tested head `41e4114e0986f2c08b41ec1fb7d2b1595880f5fe`.
+- **Evidence:** `src/users/users-management.service.ts`, `test/user-management-security.spec.ts`.
+- **Change:** Thrown failures from the read-only user list/detail queries now return the same sanitized service-unavailable messages as returned Supabase errors. Tests prove the underlying dependency details do not escape.
 - **Acceptance criteria:**
   - [x] Normalize thrown list-query failures to `Unable to load user directory`.
   - [x] Normalize thrown detail-query failures to `Unable to load user details`.
-  - [x] Add regression tests for both rejected query promises and ensure dependency details do not escape.
-  - [ ] Complete exact-head tests, typecheck, build and container build.
+  - [x] Add regression tests for both rejected query promises and safe error messages.
+  - [x] Auth-service CI passed on exact head: [run #40217547587](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40217547587) — tests, typecheck, build and container build.
+  - [ ] Lint was not verified: it is not included in the service CI workflow and local execution was unavailable in the connector-only environment.
 - **Dependencies:** Existing read-only UM-1A API; no schema, audit or migration dependency.
 - **Risk:** Low/medium — read-only response contract is unchanged; only failure normalization changes.
 - **Safety:** No mutation endpoints, schema changes, production migrations/deployments or live account mutations.
-- **PR:** [#35](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/35); do not mark complete until exact-head CI is green.
+- **Merge verification:** Current `master` matched `edde5b77f63100cd2f38c84ea24271485a12a9be` (compare status identical); auth release remains `workflow_dispatch`-only.
 
 ## Release evidence and guardrails
 
