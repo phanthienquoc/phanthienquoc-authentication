@@ -147,7 +147,7 @@
 
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
-- **Priority/status:** P1 / OPEN — cross-cutting auth security follow-up tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
+- **Priority/status:** P1 / BLOCKED — implementation requires an approved persistent MFA-challenge contract; tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
 - **Evidence:** `src/auth/auth.controller.ts` (`mfa/login`, `mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `web/src/features/auth/auth-store.ts`.
 - **Current behavior:** MFA completion accepts `userId + code`; pending MFA state is held in the browser store and is not a server-issued, expiring challenge bound to successful password verification. No explicit NestJS rate-limit guard is visible in this repository.
 - **Desired behavior:** Short-lived, one-time server challenge bound to the user/session, bounded attempts and safe invalidation.
@@ -156,6 +156,7 @@
   - Challenge is one-time, short-lived and bound to the correct user/session; attempts are rate-limited.
   - Recovery codes remain one-time; errors are generic and audit records contain no codes/secrets.
 - **Validation:** Controller/service tests for missing, expired, replayed and cross-user challenges; rate-limit tests; verify gateway rate limiting separately before rollout.
+- **Blocked evidence / recovery:** Current controller/DTO/client contract passes `userId + code`; repository migrations expose `auth_consume_passkey_challenge` for the passkey-specific `auth_passkey_challenges` table but contain no MFA first-factor challenge persistence/RPC (`supabase/migrations/20261012000000_auth_persistence_rpcs.sql`, `20261014000000_keycloak_identity_persistence.sql`). Do not repurpose passkey state for MFA or use a replayable stateless token as a substitute for one-time persistence. AUTH-UM-000 is still blocked on migration provenance and approved non-production validation; no production migration is permitted.
 - **Dependencies:** Coordinate with AUTH-UM-000 RPC/schema reconciliation; preserve existing active-account login contracts with compatibility tests.
 - **Risk:** High — second-factor completion should not be represented solely by client-side state.
 - **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
