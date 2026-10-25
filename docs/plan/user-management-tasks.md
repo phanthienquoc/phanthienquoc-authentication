@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-25  
+**Last audited:** 2026-10-26  
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -34,6 +34,7 @@
 - **Evidence:** Read-only live catalog findings in `docs/user-management-roadmap.md`; `src/auth/auth.repository.ts`; `src/auth/passkey.repository.ts`; `src/db/supabase.client.ts`; `supabase/migrations/20261012000000_auth_persistence_rpcs.sql`.
 - **Current behavior:** The checked-in migration ledger does not include `20261012000000_auth_persistence_rpcs`; source calls `auth_rotate_refresh_session`, `auth_replace_mfa_recovery_codes`, `auth_consume_mfa_recovery_code`, and `auth_consume_passkey_challenge`, which were absent from the inspected live function catalog. The provenance of `restrict_auth_rpc_execution` remains unresolved. PR #27 now makes `AuthRepository.ready()` check table existence plus the four required RPC paths in the read-only PostgREST OpenAPI schema.
 - **Desired behavior:** A reproducible, non-mutating schema/RPC contract check and verified migration provenance in an approved non-production Supabase environment before any runtime rollout.
+- **Additional provenance search (2026-10-26):** GitHub code search across both authorized repositories found no checked-in `restrict_auth_rpc_execution` migration artifact; the Authentication repository's commit history for `supabase/migrations/20261014024759_restrict_auth_rpc_execution.sql` is empty. The only code-search hit is this roadmap's reference to the missing artifact. This confirms repository evidence is insufficient to reconstruct the migration safely; it does not establish the live function definitions or grants. Do not invent a replacement migration. The remaining unblock is an authoritative migration artifact/revision plus an approved non-production Supabase project whose migration ledger and RPC signatures can be inspected.
 - **Acceptance criteria:**
   - [ ] Identify the authoritative source/revision for every live auth RPC and reconcile it with repository migrations.
   - [ ] Validate function signatures, grants, RLS/policies, relevant columns and constraints against an approved non-production environment.
