@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-- Status: Architecture baseline established; implementation is in progress. As of 2026-10-25, the read-only admin API (UM-1) and read-only directory UI (UM-2) are merged. UM-0 RPC/migration reconciliation remains blocked; account lifecycle mutations, suspension enforcement, audit APIs and UM-4 verification are not complete. See [the stable task queue](plan/user-management-tasks.md) for current evidence and dependencies.
+- Status: Architecture baseline established; implementation is in progress. As of 2026-10-25, the protected admin guard and read-only list/detail API foundation (UM-1A) plus the read-only directory UI (UM-3) are merged. UM-0 RPC/migration reconciliation remains blocked; audit persistence (UM-1B), lifecycle mutations (UM-2), suspension enforcement and UM-4 verification are not complete. See [the canonical task queue](plan/user-management-tasks.md) for stable IDs, evidence and dependencies.
 - Owner: central NestJS authentication service and its Next.js `web/` app.
 - No changes to TCE Dashboard or Media consumers in this phase.
 - No production migrations, production cutover, or real account mutations as part of planning.
@@ -122,111 +122,12 @@ Run backend tests, typecheck, lint/build and frontend typecheck/lint/build. Add 
 - CI results are reported honestly; this work makes no production changes.
 
 
-## Stable task queue — 2026-10-25
+## Task tracking
 
-The IDs below are stable across runs. Update status in place; do not create a duplicate task when the ID already exists. Current code/DB observations are evidence, not permission to change the live database.
-
-### AUTH-UM-000 — Reconcile live schema/RPC contract (UM-0)
-
-- **Priority/status:** P0 / BLOCKED on approved non-production integration environment and migration-provenance confirmation.
-- **Evidence paths:** `src/auth/auth.repository.ts`, `src/auth/passkey.repository.ts`, `src/auth/mfa.service.ts`, `src/health.controller.ts`, `supabase/migrations/20261012000000_auth_persistence_rpcs.sql`, `README.md`.
-- **Current vs desired:** read-only live catalog inspection found no `auth_rotate_refresh_session`, `auth_replace_mfa_recovery_codes`, `auth_consume_mfa_recovery_code`, or `auth_consume_passkey_challenge`; only legacy `rotate_refresh_token` and `consume_recovery_code` are present. The live ledger omits the checked-in auth RPC migration and includes an unlocated `restrict_auth_rpc_execution` artifact. Table-only readiness does not detect this mismatch. Desired: one reviewed, versioned RPC contract whose migration history, code callers, grants and readiness check agree.
-- **Acceptance criteria:** verify exact function signatures/return JSON and service-role-only execution in non-production; prove refresh rotation/reuse, recovery-code replace/consume and passkey challenge consume work against the migrated schema; readiness fails closed on a missing contract version without invoking mutating RPCs; document the unknown live migration provenance; do not drop legacy RPCs until consumers and rollout are verified.
-- **Tests/validation:** migration dry-run/schema diff in non-production; repository contract tests; integration tests for each RPC; readiness regression test; inspect grants and security-definer search paths. No production migration or writes.
-- **Dependencies:** non-production Supabase project/branch and review of PR #15 architecture baseline. The only visible development branch is marked `MIGRATIONS_FAILED`; diagnose it before use and do not reset/rebase/merge it automatically. Do not create a billable Supabase branch without approval.
-- **Risk:** critical auth availability/session risk if the current image is deployed against the inspected schema.
-- **Sources:** [issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [roadmap PR #15](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/15), [auth RPC migration](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/master/supabase/migrations/20261012000000_auth_persistence_rpcs.sql).
-
-### AUTH-UM-001A — Admin principal, guard and safe DTO foundation (UM-1A)
-
-- **Priority/status:** P1 / READY as an isolated code-and-test slice; no DB writes or mutation routes.
-- **Evidence paths:** `src/auth/jwt.service.ts`, `src/auth/auth.controller.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.module.ts`, `test/`.
-- **Current vs desired:** JWT verification exists and carries `sub`/role, but there is no centralized admin-user-management controller/guard. Desired: resolve the caller server-side, deny by default, re-check the current legacy role for privileged operations, and expose only allowlisted DTOs.
-- **Acceptance criteria:** unauthenticated and USER callers receive 401/403; ADMIN-only policy is tested on every protected route; request body/query cannot supply actor ID or role; responses omit hashes, MFA/recovery secrets, tokens and private passkey fields; no public admin bootstrap; no mutation routes in this slice.
-- **Tests/validation:** unit tests for invalid/expired JWT, missing principal, USER denial, ADMIN allow, IDOR and DTO redaction; `npm test`, `npm run typecheck`, `npm run build`.
-- **Dependencies:** architecture contract in PR #15; can proceed independently while AUTH-UM-000 waits for non-production DB validation.
-- **Risk:** high if authorization is implemented only in UI; mitigate with deny-by-default server tests.
-- **Sources:** [PR #15](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/15), [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
-
-### AUTH-UM-001B — Privileged audit persistence (UM-1B)
-
-- **Priority/status:** P1 / BLOCKED on non-production schema validation.
-- **Evidence paths:** `supabase/migrations/`, `src/db/supabase.client.ts`, `src/auth/auth.repository.ts`.
-- **Current vs desired:** live schema has no admin/audit table. Desired: append-only privileged-operation audit with actor/provider, action, target/provider, outcome, timestamp and correlation ID; only safe before/after metadata.
-- **Acceptance criteria:** additive reviewed migration; service-role-only access; RLS/grants verified; failed and successful admin attempts audited; no secrets/tokens/hashes in payload; no migration applied to the shared live project.
-- **Tests/validation:** migration/schema test in non-production; redaction tests; insert/read authorization tests; audit failure behavior documented.
-- **Dependencies:** AUTH-UM-000, AUTH-UM-001A, approved non-production Supabase environment.
-- **Risk:** high; missing or overexposed audit data can undermine incident response or leak security metadata.
-- **Sources:** [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [roadmap PR #15](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/15).
-
-### AUTH-UM-002 — Legacy account lifecycle API (UM-2)
-
-- **Priority/status:** P1 / BLOCKED until AUTH-UM-001A/B and schema migration validation pass.
-- **Evidence paths:** `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/auth.controller.ts`, `src/auth/mfa.service.ts`, `src/auth/passkey.service.ts`, `supabase/migrations/`.
-- **Current vs desired:** no status field or admin user endpoints; refresh revocation currently targets a token/session, not all active sessions by user. Desired: bounded list/detail, role change, suspend/reactivate and revoke-all-sessions, for legacy NestJS accounts only.
-- **Acceptance criteria:** suspension blocks password login, refresh rotation, MFA login/recovery and passkey login; role changes take effect promptly; prevent self-role-change, self-escalation and last-active-admin lockout; session revocation is atomic/idempotent; never hard-delete by default; Keycloak rows remain separate/read-only.
-- **Tests/validation:** unit and non-production integration tests for each entry point, concurrent refresh vs suspension, last-admin races, pagination limits, response allowlists and audit events.
-- **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B.
-- **Risk:** critical account lockout/authorization risk; require schema and concurrency proof before enabling mutation routes.
-- **Sources:** [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [roadmap PR #15](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/15).
-
-### AUTH-UM-003 — Protected admin users UI (UM-3)
-
-- **Priority/status:** P2 / BLOCKED on AUTH-UM-002 API contract and tests.
-- **Evidence paths:** `web/src/app/`, `web/src/features/auth/`, `web/src/services/auth-api.ts`, `web/tsconfig.json`.
-- **Current vs desired:** the web app is an auth screen with no admin directory. Desired: protected `/admin/users` list/detail, search/filter/pagination, provider labels and confirmation dialogs; NestJS API remains the only data boundary.
-- **Acceptance criteria:** no direct Supabase/browser service-role access; loading/empty/error states; keyboard-accessible confirmations; privileged controls hidden for USER but still server-enforced; no secret fields rendered.
-- **Tests/validation:** component/API contract tests, responsive and accessibility checks, frontend lint/typecheck/build.
-- **Dependencies:** AUTH-UM-002; do not design against speculative response fields.
-- **Risk:** medium/high if UI implies access control or exposes sensitive fields.
-- **Sources:** [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [web README](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/master/web/README.md).
-
-### AUTH-UM-004 — Non-production security/integration gate (UM-4)
-
-- **Priority/status:** P1 / BLOCKED until UM-1 through UM-3 are implemented and a non-production Supabase environment is available.
-- **Evidence paths:** `.github/workflows/ci.yml`, `.github/workflows/web-ci.yml`, `README.md`, `docs/production-runtime-secrets.md`, `supabase/migrations/`.
-- **Current vs desired:** CI currently passes source-level tests/build but does not prove the live RPC contract, cookie/gateway forwarding or user lifecycle end-to-end. Desired: non-production integration proof plus an explicit rollout checklist.
-- **Acceptance criteria:** backend and web tests/typecheck/lint/build pass on exact PR heads; schema/RLS/grants/functions/audit redaction verified; cookie/CORS/CSRF/rate-limit and gateway behavior verified; no production migration, deployment, account mutation or secret output.
-- **Tests/validation:** exact-head GitHub Actions, non-production Supabase integration, auth consumer contract tests and safe redaction review.
-- **Dependencies:** AUTH-UM-000 through AUTH-UM-003.
-- **Risk:** critical if source-only CI is mistaken for rollout readiness.
-- **Sources:** [issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
-
-### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
-
-- **Priority/status:** P1 / OPEN; cross-cutting auth security follow-up tracked under existing [issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
-- **Evidence paths:** `src/auth/auth.controller.ts` (`mfa/login`, `mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `web/src/features/auth/auth-store.ts`.
-- **Current vs desired:** MFA completion currently accepts `userId + code`; the pending MFA state is held in the browser store and is not a server-issued, expiring challenge bound to successful password verification. No explicit NestJS rate-limit guard is visible in the allowed repo. Desired: short-lived one-time server challenge, attempt throttling and safe invalidation.
-- **Acceptance criteria:** cannot complete MFA for a user without a prior server-validated first factor; challenge is one-time, short-lived and bound to the user/session; bounded attempts; recovery code remains one-time; generic errors and audit events contain no code/secret.
-- **Tests/validation:** controller/service tests for missing, expired, replayed and cross-user challenges; rate-limit tests; verify gateway rate limiting separately before rollout.
-- **Dependencies:** coordinate with AUTH-UM-000 RPC/schema reconciliation; do not break existing active-account login contract without compatibility tests.
-- **Risk:** high; second-factor completion should not be represented solely by client-side state.
-- **Sources:** [issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/master/src/auth/auth.controller.ts), [MFA DTO](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/master/src/auth/dto/mfa-login.dto.ts).
+Stable task IDs, implementation evidence and current blockers are maintained in [docs/plan/user-management-tasks.md](plan/user-management-tasks.md). This file remains the architecture and API-contract baseline; keep detailed task status in the canonical queue rather than duplicating it here.
 
 ## References
 
 - Current code: `src/auth/auth.controller.ts`, `src/auth/auth.service.ts`, `src/auth/auth.repository.ts`, `src/auth/keycloak/`, `web/src/services/auth-api.ts`.
 - Current architecture: `README.md`, `docs/web-ui-integration.md`, `docs/keycloak-oidc-foundation.md`.
 - Authorization baseline: [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) — deny by default, least privilege, per-request server-side checks and authorization tests.
-
-
-## Implementation progress — 2026-10-25
-
-### AUTH-UM-001A — admin guard and allowlisted response projection
-
-- **Status:** OPEN in [implementation PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17); no admin routes or mutation endpoints have been added.
-- **Branch/head:** `feat/auth-um1-admin-guard-dto-allowlist` at `4cc720cf1867d6bc86d276463c40bc7fb2d88544`.
-- **Scope:** reusable server-side `AdminGuard` verifies the signed ADMIN claim and re-reads the current legacy NestJS user role through `AuthRepository`; allowlisted response projection emits only `id,email,role,mfaEnabled`; tests cover denial, stale role, redaction and signup role escalation.
-- **Validation:** auth-service CI run [#202](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40207422205) completed successfully on exact HEAD `4cc720cf1867d6bc86d276463c40bc7fb2d88544`; `npm test`, typecheck, Nest build and container image build passed. Lint/format were not run (not in this workflow; local clone was unavailable).
-- **Boundary:** no audit persistence, status column, lifecycle mutation API, production migration, or Keycloak mutation is included. Audit persistence and lifecycle endpoints remain gated by UM-0 and the authorization/audit test gate.
-
-### UM-0 status recheck — live schema remains a blocker
-
-A second read-only catalog inspection on 2026-10-25 reconfirmed the existing findings above: the shared live schema has no user status/suspension field or audit table; RLS is enabled but no policies exist on the legacy user/session/MFA/passkey tables; `anon` and `authenticated` still have broad table-level grants; and the current repository's `auth_*` RPCs are absent while legacy `rotate_refresh_token` and `consume_recovery_code` remain. The checked-in `20261012000000_auth_persistence_rpcs.sql` is absent from the live migration ledger, and the source artifact for `20261014024759 restrict_auth_rpc_execution` is not present in either allowed repository.
-
-- [x] Reconcile source calls with the live function catalog and record the mismatch.
-- [ ] Establish provenance for `restrict_auth_rpc_execution`.
-- [ ] Validate the checked-in auth RPC migration and RLS/grants in an approved non-production Supabase environment.
-- [ ] Add a non-mutating readiness/contract check for the required RPCs.
-- **Status:** source/live inventory is documented; contract reconciliation remains **BLOCKED**. The Supabase development branch `main` reports `MIGRATIONS_FAILED`; it was not reset, rebased, merged or migrated.
-- **Evidence:** [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [implementation PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17).
