@@ -190,6 +190,22 @@
 - **Safety:** No mutation endpoint, migration, production deployment or live account mutation.
 - **Merge verification:** `master` matched merge SHA `f3bea9257a0b743dcfcdba725e75abf0d597c2b3` (compare status identical).
 
+### AUTH-UM-001A4 — Normalize thrown admin directory query failures
+
+- **Priority/status:** P1 / IN PR — read-only admin API hardening; exact-head CI pending.
+- **Evidence:** `src/users/users-management.service.ts`, `test/user-management-security.spec.ts`; follows AUTH-UM-001A2.
+- **Current behavior:** Returned Supabase errors are normalized to safe 503 responses, but thrown list/detail query failures can escape with dependency-specific error details.
+- **Desired behavior:** Any thrown list/detail persistence failure denies the read and returns the same safe error message as a returned Supabase error.
+- **Acceptance criteria:**
+  - [x] Normalize thrown list-query failures to `Unable to load user directory`.
+  - [x] Normalize thrown detail-query failures to `Unable to load user details`.
+  - [x] Add regression tests for both rejected query promises and ensure dependency details do not escape.
+  - [ ] Complete exact-head tests, typecheck, build and container build.
+- **Dependencies:** Existing read-only UM-1A API; no schema, audit or migration dependency.
+- **Risk:** Low/medium — read-only response contract is unchanged; only failure normalization changes.
+- **Safety:** No mutation endpoints, schema changes, production migrations/deployments or live account mutations.
+- **PR:** [#35](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/35); do not mark complete until exact-head CI is green.
+
 ## Release evidence and guardrails
 
 - PR #18's merge triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed image publication and a promotion request. This is not independent proof of production rollout/health; no platform-infra inspection or rollback was performed.
