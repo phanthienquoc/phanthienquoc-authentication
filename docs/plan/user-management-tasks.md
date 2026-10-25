@@ -209,7 +209,7 @@
 
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
-- **Priority/status:** P2 / IN PROGRESS on `fix/auth-admin-directory-loading-state`.
+- **Priority/status:** P2 / OPEN — [PR #39](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/39) on `fix/auth-admin-directory-loading-state`; exact-head checks pending.
 - **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
 - **Desired behavior:** Every authorized directory request starts in a consistent loading state and clears stale errors before calling the NestJS API; cancelled requests must not overwrite newer state.
 - **Acceptance criteria:**
