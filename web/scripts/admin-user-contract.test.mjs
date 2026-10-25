@@ -40,7 +40,7 @@ test("directory derives loading and error state from the current request key", (
   assert.ok(page.includes("requestState?.key !== requestKey"));
   assert.ok(page.includes('requestState.status === "error"'));
   assert.ok(page.includes('setRequestState({ key: requestKey, status: "success" })'));
-  assert.ok(page.includes('key: requestKey,\\n        status: "error"'));
+  assert.match(page, /key: requestKey,\\s+status: "error"/);
   assert.doesNotMatch(page, /setLoading|setError/);
 });
 test("frontend keeps explicit import aliases", () => {
