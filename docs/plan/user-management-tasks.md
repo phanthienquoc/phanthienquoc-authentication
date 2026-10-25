@@ -30,19 +30,19 @@
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
-- **Priority/status:** P0 / BLOCKED — contract reconciliation is a release gate.
-- **Evidence:** “Verified source/live RPC contract mismatch” in `docs/user-management-roadmap.md`; `src/auth/auth.repository.ts`; `src/auth/passkey.repository.ts`; `supabase/migrations/20261012000000_auth_persistence_rpcs.sql`.
-- **Current behavior:** The roadmap records a read-only live catalog inspection showing the checked-in migration ledger does not include `20261012000000_auth_persistence_rpcs`, and the current source calls `auth_rotate_refresh_session`, `auth_replace_mfa_recovery_codes`, `auth_consume_mfa_recovery_code`, and `auth_consume_passkey_challenge` that were absent from the inspected live function catalog. The provenance of `restrict_auth_rpc_execution` is unresolved. Readiness probes table existence but does not verify RPC presence.
+- **Priority/status:** P0 / BLOCKED — source/readiness contract work is merged; migration provenance and approved non-production validation remain a release gate.
+- **Evidence:** Read-only live catalog findings in `docs/user-management-roadmap.md`; `src/auth/auth.repository.ts`; `src/auth/passkey.repository.ts`; `src/db/supabase.client.ts`; `supabase/migrations/20261012000000_auth_persistence_rpcs.sql`.
+- **Current behavior:** The checked-in migration ledger does not include `20261012000000_auth_persistence_rpcs`; source calls `auth_rotate_refresh_session`, `auth_replace_mfa_recovery_codes`, `auth_consume_mfa_recovery_code`, and `auth_consume_passkey_challenge`, which were absent from the inspected live function catalog. The provenance of `restrict_auth_rpc_execution` remains unresolved. PR #27 now makes `AuthRepository.ready()` check table existence plus the four required RPC paths in the read-only PostgREST OpenAPI schema.
 - **Desired behavior:** A reproducible, non-mutating schema/RPC contract check and verified migration provenance in an approved non-production Supabase environment before any runtime rollout.
 - **Acceptance criteria:**
-  - Identify the authoritative source/revision for every live auth RPC and reconcile it with repository migrations.
-  - Validate function signatures, grants, RLS/policies, relevant columns and constraints against an approved non-production environment.
-  - Add a non-mutating readiness/contract check that fails clearly when required RPCs are absent.
-  - Record evidence and recovery options; do not reset, merge, rebase or migrate the shared live project.
-- **Validation:** Read-only catalog diff; targeted repository contract tests; CI test/typecheck/build; verify no database writes occurred. On 2026-10-25, the Supabase Preview app check on merge SHA `ab8e53782d1929880b9ad4df29365d50d86980a6` failed with `Remote migration versions not found in local migrations directory.` This is consistent with the already-observed remote/local migration-ledger mismatch; no migration was applied by this run.
+  - [ ] Identify the authoritative source/revision for every live auth RPC and reconcile it with repository migrations.
+  - [ ] Validate function signatures, grants, RLS/policies, relevant columns and constraints against an approved non-production environment.
+  - [x] Add a non-mutating readiness/contract check that fails clearly when required RPCs are absent — [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27), merged at `94341f8535a409dd2215d8f5891969f66b3a496d`.
+  - [x] Record evidence and recovery options; do not reset, merge, rebase or migrate the shared live project.
+- **Validation:** PR #27 exact tested head `6c5d6ee9d524ee365a07111a7ee04aa4056548ed`; [auth-service CI #40213420324](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40213420324) passed tests, typecheck, build and container build. Tests verify GET-only OpenAPI access, required RPC paths, missing-RPC failure and sanitized metadata errors. No migration was created/applied. A prior Supabase Preview app check on merge SHA `ab8e53782d1929880b9ad4df29365d50d86980a6` reported `Remote migration versions not found in local migrations directory`, consistent with the live/local ledger mismatch.
 - **Dependencies:** Approved non-production environment and migration provenance evidence.
-- **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge. The Supabase Preview failure is classified as migration-provenance/environment configuration, not a regression in the workflow-only PR.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql), [merge CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212123019).
+- **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge. Readiness now fails closed instead of falsely reporting table-only readiness.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27), [auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql).
 
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
@@ -55,7 +55,7 @@
   - Missing/invalid tokens, missing accounts and persistence failures fail closed.
   - Responses never expose password hashes, MFA secrets, recovery codes, passkey material, refresh-token hashes or internal security fields.
   - Signup remains hard-coded to `USER`; no public admin bootstrap exists.
-- **Validation:** Exact-head backend validation jobs passed on PR #18 head `dc3e7626dd37c4ce714cdea018b2128c63fe3eac`; `Supabase Preview` was skipped because no preview branch was associated. Verified the controller is under the global `/api` prefix and security regression tests exist on `master`.
+- **Validation:** Exact-head backend validation jobs passed on PR #18 head `dc3e7626dd37c4ce714cdea018b2128c63fe3eac`. PR #26 adds a regression proving a Supabase current-role lookup error throws `ServiceUnavailableException` and never authorizes the request; merged at `97b8d7498190884715bd1e9c657d2e432de31feb` from exact tested head `9b18a315938e54cc6933f131ea5b27f69a262193`; [auth-service CI #40213209898](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40213209898) passed. Verified the controller is under the global `/api` prefix and security regression tests exist on `master`.
 - **Dependencies:** Existing `JwtService`, `SupabaseClientService` and the verified legacy user schema.
 - **Risk:** High — authorization or response-shaping defects could expose account/security data.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
