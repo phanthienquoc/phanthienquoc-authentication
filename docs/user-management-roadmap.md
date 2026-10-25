@@ -98,6 +98,11 @@ Add a protected `/admin/users` area only after API authorization exists:
 ### UM-0 — Contract/schema discovery
 Inspect actual tables, migrations, role claims, login/refresh/MFA/passkey paths, web auth store, route prefix and tests. Document exact schema and compatibility constraints. Default to legacy-only management until a Keycloak Admin API contract is separately approved.
 
+- **Status (2026-10-25): BLOCKED on migration provenance and approved non-production validation.** Read-only live catalog discovery is complete; source-required auth RPCs are missing from the inspected live function catalog and the checked-in migration is absent from the remote migration ledger.
+- **Implemented safe sub-slice:** [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27) adds a GET-only PostgREST OpenAPI readiness contract check using the existing shared service-role credentials. It verifies the four RPC paths used by the current source and fails readiness if they are absent or the schema metadata cannot be inspected. Exact tested head `6c5d6ee9d524ee365a07111a7ee04aa4056548ed`; [auth-service CI #40213420324](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40213420324) passed.
+- **Still blocked:** Resolve `restrict_auth_rpc_execution` migration provenance and validate signatures/grants/RLS in an approved non-production Supabase environment. The Supabase Preview app check has reported `Remote migration versions not found in local migrations directory`; do not reset, merge, rebase or migrate the shared live project.
+- **Safety:** No schema mutation or production migration was performed. Keep AUTH-UM-001B audit persistence and AUTH-UM-002 mutation endpoints gated.
+
 ### UM-1 — Secure admin API foundation
 Implement principal resolution and a centralized admin guard, allowlisted response DTOs and authorization tests. Add audit persistence. Do not expose mutation endpoints before authorization/audit tests pass.
 
