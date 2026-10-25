@@ -35,9 +35,9 @@
 
 ### AUTH-UM-001 — Protected read-only admin user directory API
 
-- **Priority/status:** P1 / IN PROGRESS — PR #18 validation pending after security regression tests were added.
+- **Priority/status:** P1 / DONE for the read-only API slice — merged on 2026-10-25 at squash SHA `14795baaef7a4b40fbf2d4236f572658cee56c95`. Lifecycle mutations remain out of scope.
 - **Evidence:** `src/users/admin.guard.ts`, `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/users/dto/list-users.dto.ts`, `test/admin.guard.spec.ts`, `test/user-management-security.spec.ts`.
-- **Current behavior:** PR #18 adds protected list/detail endpoints under `/api/admin/users`. The guard verifies a signed access token and reads the current `public.users.role` from the server-side service-role client; the service explicitly selects/maps `id,email,role,mfa_enabled`. No mutations or schema changes are included.
+- **Current behavior:** PR #18 is merged to `master` at `14795baaef7a4b40fbf2d4236f572658cee56c95`. It adds protected list/detail endpoints under `/api/admin/users`. The guard verifies a signed access token and reads the current `public.users.role` from the server-side service-role client; the service explicitly selects/maps `id,email,role,mfa_enabled`. Regression tests cover current-role denial, response redaction and signup non-escalation. No mutations or schema changes are included.
 - **Desired behavior:** A minimal, fail-closed read-only directory with bounded input, allowlisted output, and regression coverage for admin authorization and signup non-escalation.
 - **Acceptance criteria:**
   - Only callers whose current legacy account role is `ADMIN` can list or inspect accounts.
@@ -46,16 +46,16 @@
   - Search and pagination inputs are validated and bounded; role/status values are allowlisted.
   - Signup remains hard-coded to `USER`; no admin bootstrap endpoint is added.
   - Exact-head backend tests, typecheck, build and container build pass.
-- **Validation:** CI for PR #18 exact head; inspect endpoint path against `src/main.ts` global `/api` prefix; inspect response shape and tests.
+- **Validation:** Exact-head backend `validate` jobs passed on PR #18 head `dc3e7626dd37c4ce714cdea018b2128c63fe3eac` before squash merge; `Supabase Preview` was skipped because the branch was not associated with a preview branch. Verified the controller is mounted under the global `/api` prefix and the security regression test file is present on `master`.
 - **Dependencies:** Existing `JwtService`, `SupabaseClientService` and verified legacy user schema.
 - **Risk:** High — an authorization or response-shaping defect could expose the account directory or security data.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [overlapping guard PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
 ### AUTH-UM-002 — Read-only admin user directory UI
 
-- **Priority/status:** P1 / IN PROGRESS — API dependency and exact-head CI recheck pending.
+- **Priority/status:** P1 / IN PROGRESS — PR #19 remains open; exact-head CI is re-running after typecheck and lint fixes. API dependency PR #18 is now merged.
 - **Evidence:** `web/src/app/admin/users/page.tsx`, `web/src/services/auth-api.ts`.
-- **Current behavior:** PR #19 adds a client-side admin directory with search, role filtering, pagination and a detail dialog. The first CI attempt failed because `ManagedUser` and `ManagedUserPage` were declared twice in `auth-api.ts`. The duplicate declarations were removed in a follow-up commit; new exact-head checks were pending at the last audit.
+- **Current behavior:** PR #19 adds a client-side admin directory with search, role filtering, pagination and a detail dialog. Initial CI exposed duplicate `ManagedUser`/`ManagedUserPage` declarations, then lint failures for synchronous state updates in an effect and internal anchors. The duplicate declarations were removed; loading is now driven by user actions/async completion and internal navigation uses `next/link`. Exact-head checks are pending.
 - **Desired behavior:** A responsive, read-only admin page that consumes only the NestJS API and degrades safely on auth/API errors.
 - **Acceptance criteria:**
   - Exact-head web typecheck, lint, build and container build pass.
@@ -135,15 +135,15 @@
 
 ### AUTH-UM-007 — Consolidate overlapping admin-guard implementation PRs
 
-- **Priority/status:** P2 / WAITING — resolve after PR #18 validation/merge.
+- **Priority/status:** P2 / DONE — PR #17 was closed as superseded after PR #18 merged and equivalent response-redaction/signup non-escalation coverage landed on `master`.
 - **Evidence:** PR #17 and PR #18 both add admin guard/module code; PR #17 additionally covers signup non-escalation and response allowlisting, while PR #18 has the list/detail controller and database-role guard.
-- **Current behavior:** Two open PRs overlap on `src/app.module.ts` and admin guard/module concepts. Merging both independently risks duplicate or conflicting wiring.
+- **Current behavior:** PR #17 and PR #18 overlapped on `src/app.module.ts` and admin guard/module concepts. PR #18 was selected as the canonical implementation and merged; PR #17 was closed with a superseded-by comment.
 - **Desired behavior:** One canonical implementation with the useful security regressions preserved, no duplicate module registration and no abandoned active implementation PR.
 - **Acceptance criteria:**
   - Review both exact diffs and retain equivalent current-role authorization, allowlisted response, and signup non-escalation tests.
   - Merge the canonical API PR only after required checks pass.
   - Close the redundant guard-only PR with a superseded-by link once equivalent coverage is present on `master`.
-- **Validation:** PR file/commit comparison; exact-head CI; verify default-branch files and test coverage after merge.
+- **Validation:** Compared changed-file lists and security-test intent; verified PR #18 merged and `test/user-management-security.spec.ts` exists on `master`; closed PR #17 as superseded.
 - **Dependencies:** AUTH-UM-001.
 - **Risk:** Medium — duplicate security primitives can diverge and make route authorization ambiguous.
 - **Links:** [PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
