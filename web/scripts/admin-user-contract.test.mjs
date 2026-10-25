@@ -35,26 +35,14 @@ test("directory retains loading, empty, error and keyboard-labelled detail state
   assert.match(page, /aria-label="Close user details"/);
 });
 
-test("directory resets loading and stale errors for every list request", () => {
-  const adminGate = page.indexOf('if (!accessToken || user?.role !== "ADMIN") return;');
-  const effectStart = page.lastIndexOf("useEffect(() => {", adminGate);
-  const effectEnd = page.indexOf(
-    "  }, [accessToken, user?.role, appliedQuery, role, page]);",
-    effectStart,
-  );
-  assert.notEqual(effectStart, -1, "admin directory request effect should be present");
-  assert.notEqual(effectEnd, -1, "admin directory request effect should close");
-  const effect = page.slice(effectStart, effectEnd);
-  const requestIndex = effect.indexOf("void authApi.adminUsers");
-  const loadingIndex = effect.indexOf("setLoading(true)");
-  const errorIndex = effect.indexOf("setError(null)");
-  assert.notEqual(requestIndex, -1, "directory request should be issued");
-  assert.notEqual(loadingIndex, -1, "each request should show loading");
-  assert.notEqual(errorIndex, -1, "each request should clear stale errors");
-  assert.ok(loadingIndex < requestIndex);
-  assert.ok(errorIndex < requestIndex);
+test("directory derives loading and error state from the current request key", () => {
+  assert.ok(page.includes("const requestKey = JSON.stringify([accessToken, user?.role, appliedQuery.trim(), role, page]);"));
+  assert.ok(page.includes("requestState?.key !== requestKey"));
+  assert.ok(page.includes('requestState.status === "error"'));
+  assert.ok(page.includes('setRequestState({ key: requestKey, status: "success" })'));
+  assert.ok(page.includes('key: requestKey,\\n        status: "error"'));
+  assert.doesNotMatch(page, /setLoading|setError/);
 });
-
 test("frontend keeps explicit import aliases", () => {
   for (const alias of ["@/*", "@components/*", "@lib/*", "@hooks/*", "@services/*", "@features/*"]) {
     assert.ok(tsconfig.includes(`"${alias}"`), `missing explicit alias ${alias}`);
