@@ -158,6 +158,22 @@
 - **Risk:** High — second-factor completion should not be represented solely by client-side state.
 - **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
 
+### AUTH-UM-001A2 — Normalize thrown admin role-lookup failures
+
+- **Priority/status:** P1 / IN PR — targeted fail-closed hardening; exact-head CI is pending.
+- **Evidence:** `src/users/admin.guard.ts`, `test/admin.guard.spec.ts`; follow-up to AUTH-UM-001A.
+- **Current behavior:** Supabase response errors are normalized to a safe `ServiceUnavailableException`, but an exception thrown by the query/client promise can escape the guard with dependency-specific details.
+- **Desired behavior:** Any current-role lookup failure denies access and returns the same safe service-unavailable response; verified token claims are never sufficient to bypass the live database role check.
+- **Acceptance criteria:**
+  - [x] Wrap only the database lookup boundary; keep JWT verification errors and non-admin decisions distinct.
+  - [x] Normalize thrown lookup errors without exposing transport/client details.
+  - [x] Add a regression test for a rejected role-lookup promise and safe error text.
+  - [ ] Run backend tests, typecheck, lint, build and container build on the exact PR head; confirm all applicable checks.
+- **Dependencies:** Existing AUTH-UM-001A guard; no schema, audit table, migration or provider change.
+- **Risk:** Low/medium — authorization remains fail-closed; the change only normalizes infrastructure failure handling.
+- **Safety:** No admin mutation endpoints, no browser data access, no production migration/deployment or live account mutation.
+- **PR:** Pending creation in this branch; do not mark complete until exact-head CI is green.
+
 ## Release evidence and guardrails
 
 - PR #18's merge triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed image publication and a promotion request. This is not independent proof of production rollout/health; no platform-infra inspection or rollback was performed.
