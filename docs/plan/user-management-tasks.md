@@ -160,35 +160,35 @@
 
 ### AUTH-UM-001A2 — Normalize thrown admin role-lookup failures
 
-- **Priority/status:** P1 / IN PR — targeted fail-closed hardening; exact-head CI is pending.
-- **Evidence:** `src/users/admin.guard.ts`, `test/admin.guard.spec.ts`; follow-up to AUTH-UM-001A.
-- **Current behavior:** Supabase response errors are normalized to a safe `ServiceUnavailableException`, but an exception thrown by the query/client promise can escape the guard with dependency-specific details.
-- **Desired behavior:** Any current-role lookup failure denies access and returns the same safe service-unavailable response; verified token claims are never sufficient to bypass the live database role check.
+- **Priority/status:** P1 / MERGED — [PR #31](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/31) squash-merged at `98e15cd120c68f9920b4e055e770ed1ec3db0aea`; exact tested head `08f4a36c7835d08e6e41e79ef9b7d1e02a17209d`.
+- **Evidence:** `src/users/admin.guard.ts`, `test/admin.guard.spec.ts`.
+- **Current behavior:** Returned Supabase errors were normalized, but thrown query/client exceptions could escape with dependency-specific details.
+- **Change:** The database lookup boundary now converts thrown lookup failures to a sanitized `503 Unable to verify administrator access`. JWT verification remains outside the catch boundary, and the current database role remains authoritative.
 - **Acceptance criteria:**
-  - [x] Wrap only the database lookup boundary; keep JWT verification errors and non-admin decisions distinct.
-  - [x] Normalize thrown lookup errors without exposing transport/client details.
-  - [x] Add a regression test for a rejected role-lookup promise and safe error text.
-  - [ ] Run backend tests, typecheck, lint, build and container build on the exact PR head; confirm all applicable checks.
+  - [x] Returned and thrown current-role lookup failures deny access.
+  - [x] A regression test verifies safe error text without leaking dependency details.
+  - [x] Auth-service CI passed on the exact tested head: [run #40216810341](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40216810341) — tests, typecheck, build and container build.
+  - [ ] Lint was not verified: it is not included in the auth-service CI workflow and local execution was unavailable in the connector-only environment.
 - **Dependencies:** Existing AUTH-UM-001A guard; no schema, audit table, migration or provider change.
-- **Risk:** Low/medium — authorization remains fail-closed; the change only normalizes infrastructure failure handling.
+- **Risk:** Low/medium — fail-closed authorization is preserved; infrastructure failures now return a consistent sanitized response.
 - **Safety:** No admin mutation endpoints, no browser data access, no production migration/deployment or live account mutation.
-- **PR:** [#31](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/31); do not mark complete until exact-head CI is green.
+- **Merge verification:** At merge, `master` matched `98e15cd120c68f9920b4e055e770ed1ec3db0aea` (compare status identical). Release workflow remains `workflow_dispatch`-only.
 
 ### AUTH-UM-001A3 — Regression coverage for admin user list projection and pagination
 
-- **Priority/status:** P1 / IN PR — test-only security-contract slice; exact-head CI pending.
+- **Priority/status:** P1 / MERGED — [PR #33](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/33) squash-merged at `f3bea9257a0b743dcfcdba725e75abf0d597c2b3`; exact tested head `6d78f46b71ee4f4eb3d0fe3c56188abd1fde88a1`.
 - **Evidence:** `test/user-management-security.spec.ts`, `src/users/users-management.service.ts`, `src/users/dto/list-users.dto.ts`.
-- **Current behavior:** The list service maps fields through an allowlist and the DTO caps page size at 100, but existing tests covered detail redaction more directly than list redaction/filtering/pagination.
-- **Desired behavior:** Prevent regressions that expose sensitive user fields or break bounded, deterministic directory queries.
+- **Change:** Regression tests prove the paginated list returns only allowlisted fields even when mocked rows include password/MFA secret fields, asserts safe selected columns, ordering, role/email filters and page range, and rejects a page size above 100.
 - **Acceptance criteria:**
-  - [x] Test that list output excludes mocked password hash and encrypted MFA secret values.
-  - [x] Assert safe select projection, email ordering, role/email filters and page range.
-  - [x] Assert page size above 100 is rejected by DTO validation.
-  - [ ] Complete exact-head backend tests, typecheck, build and container build.
+  - [x] List output excludes mocked password hash and encrypted MFA secret values.
+  - [x] Query projection, filters, ordering and pagination range are asserted.
+  - [x] Page size 101 is rejected by DTO validation.
+  - [x] Auth-service CI passed on the exact tested head: [run #40217150087](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40217150087) — tests, typecheck, build and container build.
+  - [ ] Lint was not verified: it is not included in the auth-service CI workflow and local execution was unavailable in the connector-only environment.
 - **Dependencies:** Existing read-only UM-1A API; no schema or audit dependency.
-- **Risk:** Low — tests only; no runtime behavior or access boundary changes.
+- **Risk:** Low — test-only; no runtime behavior or access boundary changes.
 - **Safety:** No mutation endpoint, migration, production deployment or live account mutation.
-- **PR:** [#33](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/33); status remains IN PR until CI evidence is green.
+- **Merge verification:** `master` matched merge SHA `f3bea9257a0b743dcfcdba725e75abf0d597c2b3` (compare status identical).
 
 ## Release evidence and guardrails
 
