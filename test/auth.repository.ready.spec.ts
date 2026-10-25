@@ -1,0 +1,48 @@
+import { ServiceUnavailableException } from '@nestjs/common';
+import { AuthRepository } from '../src/auth/auth.repository';
+import { SupabaseClientService } from '../src/db/supabase.client';
+
+const requiredRpcPaths = [
+  '/rpc/auth_rotate_refresh_session',
+  '/rpc/auth_replace_mfa_recovery_codes',
+  '/rpc/auth_consume_mfa_recovery_code',
+  '/rpc/auth_consume_passkey_challenge',
+] as const;
+
+function createSupabase(paths: readonly string[]) {
+  const query = {
+    select: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockResolvedValue({ error: null }),
+  };
+  const supabase = {
+    db: { from: jest.fn().mockReturnValue(query) },
+    getRestSchemaPaths: jest.fn().mockResolvedValue(new Set(paths)),
+  };
+  return { supabase, query };
+}
+
+describe('AuthRepository.ready RPC contract', () => {
+  it('requires every authentication RPC in the read-only PostgREST schema', async () => {
+    const { supabase } = createSupabase(requiredRpcPaths);
+    const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
+
+    await expect(repository.ready()).resolves.toBeUndefined();
+    expect(supabase.db.from).toHaveBeenCalledTimes(5);
+    expect(supabase.getRestSchemaPaths).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails readiness when a required RPC is absent', async () => {
+    const { supabase } = createSupabase(requiredRpcPaths.slice(0, -1));
+    const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
+
+    await expect(repository.ready()).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('fails readiness when PostgREST metadata cannot be inspected', async () => {
+    const { supabase } = createSupabase(requiredRpcPaths);
+    supabase.getRestSchemaPaths.mockRejectedValue(new Error('network unavailable'));
+    const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
+
+    await expect(repository.ready()).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
