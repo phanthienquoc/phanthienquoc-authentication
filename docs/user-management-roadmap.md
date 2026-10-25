@@ -214,7 +214,7 @@ The IDs below are stable across runs. Update status in place; do not create a du
 - **Status:** OPEN in [implementation PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17); no admin routes or mutation endpoints have been added.
 - **Branch/head:** `feat/auth-um1-admin-guard-dto-allowlist` at `4cc720cf1867d6bc86d276463c40bc7fb2d88544`.
 - **Scope:** reusable server-side `AdminGuard` verifies the signed ADMIN claim and re-reads the current legacy NestJS user role through `AuthRepository`; allowlisted response projection emits only `id,email,role,mfaEnabled`; tests cover denial, stale role, redaction and signup role escalation.
-- **Validation:** auth-service CI run [#202](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40207422205) was still in progress when recorded. Do not mark the slice verified until all checks complete on the exact latest head.
+- **Validation:** auth-service CI run [#202](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40207422205) completed successfully on exact HEAD `4cc720cf1867d6bc86d276463c40bc7fb2d88544`; `npm test`, typecheck, Nest build and container image build passed. Lint/format were not run (not in this workflow; local clone was unavailable).
 - **Boundary:** no audit persistence, status column, lifecycle mutation API, production migration, or Keycloak mutation is included. Audit persistence and lifecycle endpoints remain gated by UM-0 and the authorization/audit test gate.
 
 ### UM-0 status recheck — live schema remains a blocker
