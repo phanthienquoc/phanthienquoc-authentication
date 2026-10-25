@@ -172,7 +172,7 @@
 - **Dependencies:** Existing AUTH-UM-001A guard; no schema, audit table, migration or provider change.
 - **Risk:** Low/medium — authorization remains fail-closed; the change only normalizes infrastructure failure handling.
 - **Safety:** No admin mutation endpoints, no browser data access, no production migration/deployment or live account mutation.
-- **PR:** Pending creation in this branch; do not mark complete until exact-head CI is green.
+- **PR:** [#31](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/31); do not mark complete until exact-head CI is green.
 
 ## Release evidence and guardrails
 
