@@ -29,6 +29,18 @@ UM-0 is therefore **source/schema inspection complete, contract reconciliation s
 
 These are two distinct identity-provider paths, not interchangeable rows in one user table. Never treat a Keycloak identity row as a legacy password account.
 
+## Authentication and suspension enforcement path map — source inspection 2026-10-26
+
+This map identifies where future legacy-account suspension and session revocation must be enforced; it does **not** authorize schema changes or imply the shared live database currently supports the checked-in RPC contract.
+
+- **Password login:** `src/auth/auth.service.ts` — `login()` verifies email/password and returns `mfaRequired + userId` for MFA-enabled users; otherwise it calls `issueLoginForUser()`, which creates a refresh session and access JWT. A future suspension check must occur after credential verification and before either the MFA-pending response or session issuance.
+- **MFA TOTP/recovery:** `src/auth/auth.controller.ts` — `mfaLogin()` and `mfaRecovery()` accept a user ID in the request DTO, load that account and then call `completeMfaLogin()` / `completeMfaRecoveryLogin()`. These paths also depend on the separate `AUTH-SEC-001` server-side first-factor challenge contract; do not use browser-only pending state as proof of the first factor.
+- **Refresh:** `AuthService.refresh()` delegates rotation to `AuthRepository.rotateRefreshSession()` and issues a new access JWT from the returned user. Suspension enforcement and revoke-all semantics need an atomic database contract around rotation/session-family state; a post-rotation check alone can race or leave inconsistent session state.
+- **Passkey login:** `PasskeyService.authenticationVerify()` consumes `auth_consume_passkey_challenge`, verifies the credential, updates the counter, loads the account and then returns MFA-pending state or calls `issueLoginForUser()`. Suspension must prevent session issuance after successful credential verification; challenge consumption currently relies on an RPC absent from the inspected live function catalog.
+- **Authenticated passkey management:** `AuthController` uses `authenticatedUserId()` for registration, list, rename and delete routes. Once a status contract exists, suspension must be checked server-side for these routes too, not only hidden in the UI.
+- **Admin access:** `AdminGuard` verifies the access JWT and re-reads the current legacy account role, but the live `public.users` schema has no status/suspension column. Role authorization therefore cannot currently enforce suspension.
+- **Blocking dependencies:** No status column or audit table was found in the read-only live catalog; the source-required refresh/MFA/passkey RPCs are absent from that catalog and migration provenance remains unresolved. Do not implement lifecycle mutation endpoints, invent migration contents, or run a migration against the shared project until authoritative artifacts and an explicitly approved non-production Supabase target are available.
+
 ## Product decision
 
 Build an **admin-only User Management area** with the NestJS API as the enforcement boundary and the Next.js app as a client.
