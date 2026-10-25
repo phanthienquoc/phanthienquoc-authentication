@@ -211,11 +211,11 @@
 
 - **Priority/status:** P2 / OPEN — [PR #39](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/39) on `fix/auth-admin-directory-loading-state`; exact-head checks pending.
 - **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
-- **Desired behavior:** Every authorized directory request starts in a consistent loading state and clears stale errors before calling the NestJS API; cancelled requests must not overwrite newer state.
+- **Desired behavior:** Loading and error are derived from the current request key. Query/filter/page changes immediately show loading and hide stale errors; cancelled requests must not overwrite newer state.
 - **Acceptance criteria:**
-  - Set loading and clear prior errors before each directory request.
+  - Derive loading/error from the current request key without synchronous state updates inside effects.
   - Preserve request cancellation and the read-only NestJS-only API contract.
-  - Add a regression assertion for request-state ordering.
+  - Add regression coverage for keyed success/error state and stale-state suppression.
   - Keep the directory response allowlist, explicit TypeScript aliases, and no-mutation UI unchanged.
 - **Validation:** Auth-web CI must pass tests, typecheck, lint, build and container build on the exact PR head; auth-service CI must also pass tests, typecheck, build and container build.
 - **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or account-mutation dependency.
