@@ -95,19 +95,20 @@
 
 ### AUTH-UM-003 — Protected admin users UI (UM-3)
 
-- **Priority/status:** P2 / PARTIALLY DONE — read-only directory merged; privileged mutation flows remain blocked on AUTH-UM-002.
-- **Evidence:** `web/src/app/admin/users/page.tsx`, `web/src/services/auth-api.ts`, `web/src/features/auth/auth-store.ts`.
-- **Current behavior:** PR #19 adds a read-only `/admin/users` page with search, role filter, pagination and an account detail panel. It calls the NestJS API only; no mutation controls are exposed.
+- **Priority/status:** P2 / PARTIALLY DONE — read-only directory and contract regression tests are merged; browser-level keyboard/responsive coverage and all privileged mutation flows remain open.
+- **Evidence:** `web/src/app/admin/users/page.tsx`, `web/src/services/auth-api.ts`, `web/src/features/auth/auth-store.ts`, `web/scripts/admin-user-query.mjs`, `web/scripts/admin-user-query.test.mjs`, `web/scripts/admin-user-contract.test.mjs`.
+- **Current behavior:** PR #19 provides the read-only `/admin/users` directory with search, role filter, pagination and detail panel. PR #24 extracts the query builder and adds dependency-free contract tests for query encoding, NestJS-only API access, Bearer auth, role gate, response allowlist, read-only controls, loading/empty/error states, dialog labels and explicit aliases. No mutation controls are exposed.
 - **Desired behavior:** A responsive, accessible admin workflow for supported account lifecycle actions after the API and audit gates exist.
 - **Acceptance criteria:**
   - No direct browser-to-Supabase access or sensitive fields in the UI.
   - Loading/empty/error states, keyboard-accessible confirmation dialogs and clear provider labels.
   - Mutation controls are not shown until matching protected API routes and tests exist.
   - UI role checks remain supplementary; server-side authorization is authoritative.
-- **Validation:** Exact-head frontend typecheck/lint/build/container checks passed on PR #19 head `7ae7ccfe9fa22578aeeb66d3d2795f8af46d4348`; post-merge `auth-web-ci` passed on `90bf8fae15676107dfc94fd7452e813593a31e4b`.
-- **Dependencies:** AUTH-UM-002 for mutation controls; the read-only UI can remain useful independently.
+- **Validation:** PR #24 merged at `52864661b10bdd35feedb3266040700033d05238` from exact tested head `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`. [Auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and the frontend container build. [Auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed backend tests, typecheck, build and container build. Post-merge runs #40212871633 and #40212871603 passed. The separate Supabase Preview app check failed with `Remote migration versions not found in local migrations directory`; this is tracked under AUTH-UM-000 and no migration was applied.
+- **Remaining:** Add true component/browser tests for keyboard focus, responsive layout and dialog interaction when a supported UI test environment is available. Keep all mutation controls gated on AUTH-UM-001B/AUTH-UM-002.
+- **Dependencies:** AUTH-UM-002 for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
-- **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
+- **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
 
 ### AUTH-UM-004 — Non-production security/integration gate (UM-4)
 

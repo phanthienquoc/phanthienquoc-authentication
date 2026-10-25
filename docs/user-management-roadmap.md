@@ -107,6 +107,10 @@ Implement list/detail, role change, suspension/reactivation and session revocati
 ### UM-3 — Admin UI
 Implement the protected users directory and confirmation flows. Add API/component tests, responsive layout, keyboard accessibility and error handling. UI checks are supplementary; API remains authoritative.
 
+- **Status (2026-10-25): PARTIALLY DONE.** The read-only directory from PR #19 and dependency-free query/security-contract tests from PR #24 are merged. PR #24's exact tested head was `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`; [auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed tests, typecheck, lint, build and frontend container build. [auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed.
+- **Still open:** Browser-level focus/keyboard interaction and responsive-layout tests; mutation UI stays hidden until AUTH-UM-001B audit persistence and AUTH-UM-002 mutation authorization/concurrency tests pass.
+- **Schema blocker:** The separate Supabase Preview app check after PR #24 failed with `Remote migration versions not found in local migrations directory`. This remains AUTH-UM-000 migration-provenance/non-production validation work; no migration was applied by the implementation run.
+
 ### UM-4 — Verification and controlled rollout
 Run backend tests, typecheck, lint/build and frontend typecheck/lint/build. Add integration tests against non-production Supabase for authorization, lifecycle, session revocation, MFA/passkeys and login compatibility. Verify schema, RLS, grants, audit redaction, CORS/cookies and gateway routes. Use dedicated branch and PR; never merge/deploy or run production migrations automatically. Production rollout requires review and existing GitOps gates.
 
