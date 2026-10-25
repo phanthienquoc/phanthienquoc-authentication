@@ -1,4 +1,4 @@
-import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { AdminGuard } from '../src/users/admin.guard';
 import { JwtService } from '../src/auth/jwt.service';
 import { SupabaseClientService } from '../src/db/supabase.client';
@@ -11,10 +11,10 @@ function contextFor(authorization?: string): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function createGuard(role: string | null) {
+function createGuard(role: string | null, error: unknown = null) {
   const maybeSingle = jest.fn().mockResolvedValue({
     data: role ? { id: 'admin-user-id', role } : null,
-    error: null,
+    error,
   });
   const query = {
     select: jest.fn().mockReturnThis(),
@@ -48,5 +48,12 @@ describe('AdminGuard', () => {
   it('rejects a token whose subject no longer exists', async () => {
     const { guard } = createGuard(null);
     await expect(guard.canActivate(contextFor('Bearer signed-token'))).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('fails closed when the current-role lookup returns a persistence error', async () => {
+    const { guard } = createGuard('ADMIN', new Error('database unavailable'));
+    await expect(guard.canActivate(contextFor('Bearer signed-token'))).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });
