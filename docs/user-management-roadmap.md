@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-- Status: PROPOSED architecture baseline; implementation follows as separate, testable PRs.
+- Status: Architecture baseline established; implementation is in progress. As of 2026-10-25, the read-only admin API (UM-1) and read-only directory UI (UM-2) are merged. UM-0 RPC/migration reconciliation remains blocked; account lifecycle mutations, suspension enforcement, audit APIs and UM-4 verification are not complete. See [the stable task queue](plan/user-management-tasks.md) for current evidence and dependencies.
 - Owner: central NestJS authentication service and its Next.js `web/` app.
 - No changes to TCE Dashboard or Media consumers in this phase.
 - No production migrations, production cutover, or real account mutations as part of planning.
@@ -10,8 +10,8 @@
 ## Verified current state
 
 - `src/auth/auth.repository.ts` uses the existing shared Supabase project and `@supabase/supabase-js`; its `public.users` model has `id`, `email`, `password_hash`, `role` (`USER | ADMIN`), `mfa_enabled`, and `mfa_secret_encrypted`.
-- Signup assigns `USER`. The NestJS API has signup/login/`me`/refresh/logout and MFA/passkey flows, but no dedicated `src/users` module or admin user-management controller.
-- `web/` is currently an authentication screen; no admin area or user directory exists.
+- Signup assigns `USER`. The NestJS API has signup/login/`me`/refresh/logout and MFA/passkey flows. PR #18 added `src/users` and protected read-only `/api/admin/users` list/detail endpoints; no role/status/session mutation endpoints or audit API exist yet.
+- `web/` includes the authentication screen plus a read-only `/admin/users` directory with search, role filter, pagination and a detail panel (PR #19); no mutation controls are exposed.
 - An optional Keycloak OIDC path exists. `auth_keycloak_identities` stores minimal metadata for verified Keycloak identities; Keycloak remains the source of truth for credentials, sessions, MFA and roles in that mode.
 - README and `docs/web-ui-integration.md` require the backend to own auth logic and keep Keycloak mode opt-in/non-production until its integration gates pass.
 
@@ -49,12 +49,15 @@ Build an **admin-only User Management area** with the NestJS API as the enforcem
 
 ## Proposed API contract
 
-These routes are proposals, not available endpoints until implemented and tested:
+Implemented read-only routes:
 
-- `GET /admin/users?query=&role=&status=&limit=&cursor=` — paginated directory, normalized email search, bounded page size and allowlisted sorting.
-- `GET /admin/users/:id` — allowlisted profile and security summary.
+- `GET /admin/users?query=&role=&page=&limit=` — paginated directory with email search, role filter, bounded page size and allowlisted output.
+- `GET /admin/users/:id` — allowlisted account details.
+
+Remaining proposed routes (not implemented):
+
 - `PATCH /admin/users/:id/role` — role change with privileged caller and audit record.
-- `PATCH /admin/users/:id/status` — suspend/reactivate.
+- `PATCH /admin/users/:id/status` — suspend/reactivate; requires an approved status schema and enforcement across all authentication paths.
 - `POST /admin/users/:id/revoke-sessions` — revoke active refresh sessions for that user.
 - `GET /admin/audit-events` — paginated admin/security events with redaction.
 
