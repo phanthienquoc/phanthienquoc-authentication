@@ -33,7 +33,7 @@
 - **Validation:** YAML/workflow syntax validation; deterministic trigger/path tests; inspect exact PR head and push-trigger behavior; verify that no release/promotion run starts from a docs-only or ordinary code merge without explicit dispatch.
 - **Dependencies:** None for analysis; a safe workflow change must be independently verified before merging.
 - **Risk:** Critical — unintended release/promotion is a production side effect. No rollout/health claim may be inferred from the successful dispatch job.
-- **Links:** [release workflow](../.github/workflows/release.yml), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836).
+- **Links:** [release workflow](../../.github/workflows/release.yml), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836).
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
@@ -146,18 +146,6 @@
 - **Dependencies:** Coordinate with AUTH-UM-000 RPC/schema reconciliation; preserve existing active-account login contracts with compatibility tests.
 - **Risk:** High — second-factor completion should not be represented solely by client-side state.
 - **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
-
-## Completed/resolved items
-
-### AUTH-UM-001A-TESTS — Read-only admin security regression coverage
-
-- **Priority/status:** P1 / DONE on 2026-10-25 as part of PR #18.
-- **Evidence:** `test/admin.guard.spec.ts`, `test/user-management-security.spec.ts`; merge SHA `14795baaef7a4b40fbf2d4236f572658cee56c95`.
-- **Current vs desired:** Tests now prove database-current-role denial, safe account-detail projection, signup DTO role rejection and service-level non-escalation to ADMIN.
-- **Validation:** Exact-head backend validation passed on PR #18; post-merge auth-service CI passed on merge SHA `14795baaef7a4b40fbf2d4236f572658cee56c95`.
-- **Dependencies:** AUTH-UM-001A.
-- **Risk:** Low after merge; maintain these regression tests as lifecycle APIs are added.
-- **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [closed superseded PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17).
 
 ## Release evidence and guardrails
 
