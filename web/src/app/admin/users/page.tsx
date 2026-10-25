@@ -171,8 +171,6 @@ export default function AdminUsersPage() {
           <select id="role-filter" value={role} onChange={(event) => {
               const nextRole = event.target.value as "" | "USER" | "ADMIN";
               if (nextRole !== role || page !== 1) {
-                setLoading(true);
-                setError(null);
                 setRole(nextRole);
                 setPage(1);
               }
