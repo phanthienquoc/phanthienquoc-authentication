@@ -36,9 +36,8 @@ test("directory retains loading, empty, error and keyboard-labelled detail state
 });
 
 test("directory resets loading and stale errors for every list request", () => {
-  const effectStart = page.indexOf(
-    'useEffect(() => {\\n    if (!accessToken || user?.role !== "ADMIN") return;',
-  );
+  const adminGate = page.indexOf('if (!accessToken || user?.role !== "ADMIN") return;');
+  const effectStart = page.lastIndexOf("useEffect(() => {", adminGate);
   const effectEnd = page.indexOf(
     "  }, [accessToken, user?.role, appliedQuery, role, page]);",
     effectStart,
