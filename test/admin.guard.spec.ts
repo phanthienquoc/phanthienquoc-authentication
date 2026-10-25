@@ -56,4 +56,18 @@ describe('AdminGuard', () => {
       ServiceUnavailableException,
     );
   });
+
+  it('normalizes thrown role-lookup failures without leaking dependency details', async () => {
+    const { guard, maybeSingle } = createGuard('ADMIN');
+    maybeSingle.mockRejectedValue(new Error('internal connection detail'));
+
+    try {
+      await guard.canActivate(contextFor('Bearer signed-token'));
+      fail('expected authorization lookup to fail closed');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      expect((error as Error).message).toContain('Unable to verify administrator access');
+      expect((error as Error).message).not.toContain('internal connection detail');
+    }
+  });
 });
