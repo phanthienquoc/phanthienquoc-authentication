@@ -36,14 +36,20 @@ test("directory retains loading, empty, error and keyboard-labelled detail state
 });
 
 test("directory resets loading and stale errors for every list request", () => {
-  const effect = page.match(
-    /useEffect\\(\\(\\) => \\{\\s*if \\(!accessToken \\|\\| user\\?\\.role !== "ADMIN"\\) return;([\\s\\S]*?)\\n  \\}, \\[accessToken, user\\?\\.role, appliedQuery, role, page\\]\\);/,
+  const effectStart = page.indexOf(
+    'useEffect(() => {\\n    if (!accessToken || user?.role !== "ADMIN") return;',
   );
-  assert.ok(effect, "admin directory request effect should be present");
-  const requestIndex = effect[1].indexOf("void authApi.adminUsers");
+  const effectEnd = page.indexOf(
+    "  }, [accessToken, user?.role, appliedQuery, role, page]);",
+    effectStart,
+  );
+  assert.notEqual(effectStart, -1, "admin directory request effect should be present");
+  assert.notEqual(effectEnd, -1, "admin directory request effect should close");
+  const effect = page.slice(effectStart, effectEnd);
+  const requestIndex = effect.indexOf("void authApi.adminUsers");
   assert.notEqual(requestIndex, -1, "directory request should be issued");
-  assert.ok(effect[1].indexOf("setLoading(true)") < requestIndex);
-  assert.ok(effect[1].indexOf("setError(null)") < requestIndex);
+  assert.ok(effect.indexOf("setLoading(true)") < requestIndex);
+  assert.ok(effect.indexOf("setError(null)") < requestIndex);
 });
 
 test("frontend keeps explicit import aliases", () => {
