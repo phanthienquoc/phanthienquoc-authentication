@@ -12,6 +12,7 @@
 - Every task records current and desired behavior, acceptance criteria, validation, dependencies, risk and source links.
 - Use one descriptive branch and PR per dependency-safe slice; never commit directly to `master`.
 - Squash-merge only after exact-head required checks pass, mergeability is confirmed, and security/regression inspection is complete.
+- Before merging, inspect push-triggered workflows and block merges that would publish/promote/deploy to production unless the user separately authorizes that exact side effect; documentation-only changes are not exempt.
 - Never apply production migrations, deploy production, or mutate live accounts from this queue.
 - A CI run marked skipped is not a successful test. Re-check pending runs on a later pass.
 
@@ -47,6 +48,7 @@
   - Signup remains hard-coded to `USER`; no admin bootstrap endpoint is added.
   - Exact-head backend tests, typecheck, build and container build pass.
 - **Validation:** Exact-head backend `validate` jobs passed on PR #18 head `dc3e7626dd37c4ce714cdea018b2128c63fe3eac` before squash merge; `Supabase Preview` was skipped because the branch was not associated with a preview branch. Verified the controller is mounted under the global `/api` prefix and the security regression test file is present on `master`.
+- **Post-merge workflow evidence:** The master push triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed successfully after publishing an ARM64 image and completing the “Request Auth image promotion in platform-infra” step. This is evidence of a promotion request, **not** proof of production rollout/health. No platform-infra inspection or rollback was performed. Future merges must preflight this release trigger.
 - **Dependencies:** Existing `JwtService`, `SupabaseClientService` and verified legacy user schema.
 - **Risk:** High — an authorization or response-shaping defect could expose the account directory or security data.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [overlapping guard PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
