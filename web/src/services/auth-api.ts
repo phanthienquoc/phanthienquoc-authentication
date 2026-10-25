@@ -23,6 +23,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+export type ManagedUser = {
+  id: string;
+  email: string;
+  role: "USER" | "ADMIN";
+  mfaEnabled: boolean;
+};
+
+export type ManagedUserPage = {
+  items: ManagedUser[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export const authApi = {
   login: (email: string, password: string) =>
     request<AuthResult>("/auth/login", {
@@ -53,5 +68,19 @@ export const authApi = {
     request<AuthResult>("/auth/mfa/recovery", {
       method: "POST",
       body: JSON.stringify({ userId, code }),
+    }),
+  adminUsers: (accessToken: string, params: { query?: string; role?: "USER" | "ADMIN"; page?: number; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.query) search.set("query", params.query);
+    if (params.role) search.set("role", params.role);
+    search.set("page", String(params.page ?? 1));
+    search.set("limit", String(params.limit ?? 25));
+    return request<ManagedUserPage>(`/api/admin/users?${search.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  },
+  adminUser: (accessToken: string, id: string) =>
+    request<{ user: ManagedUser }>(`/api/admin/users/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     }),
 };
