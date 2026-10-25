@@ -5,6 +5,10 @@ import Link from "next/link";
 import { authApi, type ManagedUser } from "@services/auth-api";
 import { useAuthStore } from "@features/auth/auth-store";
 
+type DirectoryRequestState =
+  | { key: string; status: "success" }
+  | { key: string; status: "error"; message: string };
+
 export default function AdminUsersPage() {
   const { accessToken, user, loading: authLoading, restoreSession } = useAuthStore();
   const [query, setQuery] = useState("");
@@ -15,8 +19,13 @@ export default function AdminUsersPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [selected, setSelected] = useState<ManagedUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [requestState, setRequestState] = useState<DirectoryRequestState | null>(null);
+  const requestKey = JSON.stringify([accessToken, user?.role, appliedQuery.trim(), role, page]);
+  const loading = Boolean(accessToken && user?.role === "ADMIN" && requestState?.key !== requestKey);
+  const error =
+    requestState?.key === requestKey && requestState.status === "error"
+      ? requestState.message
+      : null;
 
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -29,8 +38,6 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (!accessToken || user?.role !== "ADMIN") return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     void authApi.adminUsers(accessToken, {
       query: appliedQuery.trim() || undefined,
       role: role || undefined,
@@ -38,6 +45,7 @@ export default function AdminUsersPage() {
       limit: 25,
     }).then((result) => {
       if (cancelled) return;
+      setRequestState({ key: requestKey, status: "success" });
       setItems(result.items);
       setTotal(result.total);
       setTotalPages(result.totalPages);
@@ -45,12 +53,15 @@ export default function AdminUsersPage() {
         current && !result.items.some((item) => item.id === current.id) ? null : current,
       );
     }).catch((cause: unknown) => {
-      if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load users.");
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
+      if (cancelled) return;
+      setRequestState({
+        key: requestKey,
+        status: "error",
+        message: cause instanceof Error ? cause.message : "Could not load users.",
+      });
     });
     return () => { cancelled = true; };
-  }, [accessToken, user?.role, appliedQuery, role, page]);
+  }, [accessToken, user?.role, appliedQuery, role, page, requestKey]);
 
   useEffect(() => {
     if (!selected) return;
@@ -104,8 +115,6 @@ export default function AdminUsersPage() {
     event.preventDefault();
     const nextQuery = query.trim();
     if (nextQuery !== appliedQuery || page !== 1) {
-      setLoading(true);
-      setError(null);
       setAppliedQuery(nextQuery);
       setPage(1);
     }
