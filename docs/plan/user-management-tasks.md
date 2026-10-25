@@ -106,7 +106,7 @@
   - Mutation controls are not shown until matching protected API routes and tests exist.
   - UI role checks remain supplementary; server-side authorization is authoritative.
 - **Validation:** PR #24 merged at `52864661b10bdd35feedb3266040700033d05238` from exact tested head `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`. [Auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and the frontend container build. [Auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed backend tests, typecheck, build and container build. Post-merge runs #40212871633 and #40212871603 passed. The Supabase Preview app check on the subsequent PR #26 merge SHA `97b8d7498190884715bd1e9c657d2e432de31feb` failed with `Remote migration versions not found in local migrations directory`; the PR #24 merge check itself was skipped because no Supabase branch was associated. This is tracked under AUTH-UM-000 and no migration was applied.
-- **Remaining:** PR #29 implements initial focus, Tab/Shift+Tab containment, Escape dismissal and trigger focus restoration, with source-contract regression coverage. True browser-level focus/dialog interaction tests and responsive-layout tests remain open because the current web test harness is Node's built-in runner, not a browser harness. Mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002.
+- **Remaining:** PR #29 implements initial focus, Tab/Shift+Tab containment, Escape dismissal and trigger focus restoration. [PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43) adds a dependency-free Chromium DevTools Protocol browser test using the runner's preinstalled Chrome/Chromium to exercise real keyboard events and 390×844, 844×390 and 1280×800 layouts. Its exact-head CI must pass before this slice is accepted. Mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002.
 - **Dependencies:** AUTH-UM-002 for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
@@ -206,6 +206,22 @@
 - **Risk:** Low/medium — read-only response contract is unchanged; only failure normalization changes.
 - **Safety:** No mutation endpoints, schema changes, production migrations/deployments or live account mutations.
 - **Merge verification:** Current `master` matched `edde5b77f63100cd2f38c84ea24271485a12a9be` (compare status identical); auth release remains `workflow_dispatch`-only.
+
+### AUTH-UM-003C — Browser-level dialog focus and responsive contract
+
+- **Priority/status:** P2 / IN PR — test-only slice on dedicated branch `test/auth-um3-browser-dialog-contract`.
+- **Evidence:** `web/src/app/admin/users/page.tsx`, `web/scripts/admin-user-contract.test.mjs`, `web/scripts/admin-user-dialog.browser.test.mjs`, `.github/workflows/web-ci.yml`.
+- **Current behavior:** Existing tests assert focus-management source patterns, but do not execute real browser keyboard events or measure the rendered dialog at phone/landscape/desktop viewports.
+- **Desired behavior:** Verify the implemented read-only detail dialog in a real headless browser without adding an npm browser dependency or calling a real auth service.
+- **Acceptance criteria:**
+  - Exercise Tab and Shift+Tab wrap, Escape dismissal and focus restoration using browser input events.
+  - Check the dialog stays inside 390×844 portrait, 844×390 short-landscape and 1280×800 desktop viewports without page-level horizontal overflow.
+  - Confirm the dialog renders only allowlisted account fields and the non-admin UI never calls the admin directory API.
+  - Mock all auth/admin API responses; add no Supabase/browser data access, schema change or mutation control.
+- **Validation:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and frontend container build on the exact PR HEAD; inspect Chromium test output. Local execution is unavailable in this connector-only environment, so GitHub Actions is the validation source.
+- **Dependencies:** Existing read-only UM-3 UI; no schema/audit dependency. Requires the GitHub-hosted runner's preinstalled Chrome/Chromium.
+- **Risk:** Low to medium — browser harness may expose an existing keyboard/layout defect; no runtime auth or database behavior changes.
+- **Safety:** No new npm dependency, no real account calls, no Supabase browser access, no schema/migration, no production release, no Keycloak mutation.
 
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
