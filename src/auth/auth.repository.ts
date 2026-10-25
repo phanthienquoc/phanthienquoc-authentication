@@ -19,9 +19,32 @@ export class AuthRepository {
   constructor(private readonly supabase: SupabaseClientService) {}
 
   async ready(): Promise<void> {
-    for (const table of ['users','refresh_sessions','mfa_recovery_codes','auth_passkey_challenges','auth_passkey_credentials']) {
+    for (const table of [
+      'users',
+      'refresh_sessions',
+      'mfa_recovery_codes',
+      'auth_passkey_challenges',
+      'auth_passkey_credentials',
+    ]) {
       const { error } = await this.supabase.db.from(table).select('id').limit(1);
       if (error) this.persistenceError();
+    }
+
+    let paths: ReadonlySet<string>;
+    try {
+      paths = await this.supabase.getRestSchemaPaths();
+    } catch {
+      this.persistenceError();
+    }
+
+    const requiredRpcPaths = [
+      '/rpc/auth_rotate_refresh_session',
+      '/rpc/auth_replace_mfa_recovery_codes',
+      '/rpc/auth_consume_mfa_recovery_code',
+      '/rpc/auth_consume_passkey_challenge',
+    ] as const;
+    if (requiredRpcPaths.some((path) => !paths.has(path))) {
+      this.persistenceError();
     }
   }
 
