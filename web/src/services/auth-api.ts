@@ -38,6 +38,21 @@ export type ManagedUserPage = {
   totalPages: number;
 };
 
+export type ManagedUser = {
+  id: string;
+  email: string;
+  role: "USER" | "ADMIN";
+  mfaEnabled: boolean;
+};
+
+export type ManagedUserPage = {
+  items: ManagedUser[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export const authApi = {
   login: (email: string, password: string) =>
     request<AuthResult>("/auth/login", {
