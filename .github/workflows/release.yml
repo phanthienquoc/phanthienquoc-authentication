@@ -1,17 +1,8 @@
 name: auth-service-release
 
 'on':
-  push:
-    branches: [master]
-    paths:
-      - src/**
-      - test/**
-      - package.json
-      - nest-cli.json
-      - tsconfig.json
-      - Dockerfile
-      - .github/workflows/ci.yml
-      - .github/workflows/release.yml
+  # Production image publication and GitOps promotion require an explicit,
+  # auditable manual dispatch from master. Ordinary pushes only run CI.
   workflow_dispatch:
 
 permissions:
