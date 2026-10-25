@@ -105,7 +105,7 @@
   - Mutation controls are not shown until matching protected API routes and tests exist.
   - UI role checks remain supplementary; server-side authorization is authoritative.
 - **Validation:** PR #24 merged at `52864661b10bdd35feedb3266040700033d05238` from exact tested head `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`. [Auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and the frontend container build. [Auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed backend tests, typecheck, build and container build. Post-merge runs #40212871633 and #40212871603 passed. The Supabase Preview app check on the subsequent PR #26 merge SHA `97b8d7498190884715bd1e9c657d2e432de31feb` failed with `Remote migration versions not found in local migrations directory`; the PR #24 merge check itself was skipped because no Supabase branch was associated. This is tracked under AUTH-UM-000 and no migration was applied.
-- **Remaining:** Add true component/browser tests for keyboard focus, responsive layout and dialog interaction when a supported UI test environment is available. Keep all mutation controls gated on AUTH-UM-001B/AUTH-UM-002.
+- **Remaining:** PR #29 implements initial focus, Tab/Shift+Tab containment, Escape dismissal and trigger focus restoration, with source-contract regression coverage. True browser-level focus/dialog interaction tests and responsive-layout tests remain open because the current web test harness is Node's built-in runner, not a browser harness. Mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002.
 - **Dependencies:** AUTH-UM-002 for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
@@ -113,7 +113,7 @@
 
 ### AUTH-UM-003A — Keyboard-accessible read-only user detail dialog
 
-- **Priority/status:** P2 / IN PROGRESS — dependency-safe UI accessibility slice; no lifecycle mutation controls.
+- **Priority/status:** P2 / IMPLEMENTED — merged PR #29 at `c3745d755af470dbfb4e3c27afac6d564264b90b` from exact tested head `b37238b21cc6ba9bc03113854b28554b5c15a24d`; browser-level verification remains open.
 - **Evidence:** web/src/app/admin/users/page.tsx, web/scripts/admin-user-contract.test.mjs.
 - **Current behavior:** The read-only detail panel has dialog semantics and a close button but does not yet manage initial focus, contain keyboard tabbing, dismiss with Escape, or restore focus to the row that opened it.
 - **Desired behavior:** Opening the panel focuses its close control; Tab/Shift+Tab remain inside the modal dialog; Escape closes it; closing restores focus to the originating account row.
@@ -122,7 +122,7 @@
   - Use accessible dialog semantics and keyboard dismissal.
   - Keep focus inside the open dialog and restore focus to the trigger after close.
   - Add regression coverage for the keyboard/focus contract without adding an unapproved test dependency.
-- **Validation:** Pending exact-head auth-web CI (npm test, npm run typecheck, npm run lint, npm run build, frontend container build) and auth-service CI. Source-level contract tests do not replace browser-level interaction testing; that remains a separate follow-up if no supported browser harness exists.
+- **Validation:** Exact tested head `b37238b21cc6ba9bc03113854b28554b5c15a24d`: [auth-web CI #40214171528](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171528) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and frontend container build; [auth-service CI #40214171499](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171499) passed `npm test`, `npm run typecheck`, `npm run build` and container build. The PR diff was reviewed; no server/auth/data-access changes. These are source-level contract tests, not browser-level interaction proof.
 - **Dependencies:** Existing read-only UM-3 UI; no schema or audit dependencies.
 - **Risk:** Low to medium — incorrect focus cleanup could leave keyboard users outside the modal; no server authorization or data-access behavior changes.
 - **Safety:** No Supabase access added to the browser, no schema changes, no production release or account mutations.
