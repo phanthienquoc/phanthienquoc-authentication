@@ -6,7 +6,16 @@ import { KeycloakModule } from './auth/keycloak/keycloak.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, cache: true, envFilePath: ['.env.local', '.env'] }), AuthModule, UsersModule, KeycloakModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
+    AuthModule,
+    UsersModule,
+    KeycloakModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule {}
