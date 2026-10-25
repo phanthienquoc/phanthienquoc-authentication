@@ -23,7 +23,7 @@ export class AdminGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AdminRequest>();
-    const match = request.headers.authorization?.match(/^Bearer\\s+([^\\s]+)$/i);
+    const match = request.headers.authorization?.match(/^Bearer\s+([^\s]+)$/i);
     if (!match) throw new UnauthorizedException('Bearer access token required');
 
     const claims = this.jwt.verify(match[1]);
