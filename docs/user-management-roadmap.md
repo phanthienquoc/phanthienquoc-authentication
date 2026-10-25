@@ -15,6 +15,12 @@
 - An optional Keycloak OIDC path exists. `auth_keycloak_identities` stores minimal metadata for verified Keycloak identities; Keycloak remains the source of truth for credentials, sessions, MFA and roles in that mode.
 - README and `docs/web-ui-integration.md` require the backend to own auth logic and keep Keycloak mode opt-in/non-production until its integration gates pass.
 
+The schema discovery pass also found the legacy baseline in [TCE Dashboard infra/db/001_auth.sql](https://github.com/phanthienquoc/TCE-dashboard/blob/master/infra/db/001_auth.sql):
+- `users`: `id`, `email`, `password_hash`, `role`, `mfa_enabled`, `mfa_secret_encrypted`, `created_at`, `updated_at`. No status/suspension field is defined in this baseline.
+- `refresh_sessions`: `id`, `user_id`, `token_hash`, `family_id`, `replaced_by`, `expires_at`, `revoked_at`, `created_at`, `last_used_at`, `ip`, `user_agent`.
+- MFA recovery-code and passkey tables are separate; the auth repository's current migration directory does not define the original user/session tables or an admin audit table.
+- This repository SQL is a schema baseline, not proof of the live Supabase schema. UM-0 must verify the live schema and grants in a non-production environment before designing/applying any migration. The first account-status implementation will need an additive migration, then enforcement in every legacy authentication entry point.
+
 These are two distinct identity-provider paths, not interchangeable rows in one user table. Never treat a Keycloak identity row as a legacy password account.
 
 ## Product decision
