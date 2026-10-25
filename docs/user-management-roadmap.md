@@ -205,3 +205,25 @@ The IDs below are stable across runs. Update status in place; do not create a du
 - Current code: `src/auth/auth.controller.ts`, `src/auth/auth.service.ts`, `src/auth/auth.repository.ts`, `src/auth/keycloak/`, `web/src/services/auth-api.ts`.
 - Current architecture: `README.md`, `docs/web-ui-integration.md`, `docs/keycloak-oidc-foundation.md`.
 - Authorization baseline: [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) — deny by default, least privilege, per-request server-side checks and authorization tests.
+
+
+## Implementation progress — 2026-10-25
+
+### AUTH-UM-001A — admin guard and allowlisted response projection
+
+- **Status:** OPEN in [implementation PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17); no admin routes or mutation endpoints have been added.
+- **Branch/head:** `feat/auth-um1-admin-guard-dto-allowlist` at `4cc720cf1867d6bc86d276463c40bc7fb2d88544`.
+- **Scope:** reusable server-side `AdminGuard` verifies the signed ADMIN claim and re-reads the current legacy NestJS user role through `AuthRepository`; allowlisted response projection emits only `id,email,role,mfaEnabled`; tests cover denial, stale role, redaction and signup role escalation.
+- **Validation:** auth-service CI run [#202](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40207422205) was still in progress when recorded. Do not mark the slice verified until all checks complete on the exact latest head.
+- **Boundary:** no audit persistence, status column, lifecycle mutation API, production migration, or Keycloak mutation is included. Audit persistence and lifecycle endpoints remain gated by UM-0 and the authorization/audit test gate.
+
+### UM-0 status recheck — live schema remains a blocker
+
+A second read-only catalog inspection on 2026-10-25 reconfirmed the existing findings above: the shared live schema has no user status/suspension field or audit table; RLS is enabled but no policies exist on the legacy user/session/MFA/passkey tables; `anon` and `authenticated` still have broad table-level grants; and the current repository's `auth_*` RPCs are absent while legacy `rotate_refresh_token` and `consume_recovery_code` remain. The checked-in `20261012000000_auth_persistence_rpcs.sql` is absent from the live migration ledger, and the source artifact for `20261014024759 restrict_auth_rpc_execution` is not present in either allowed repository.
+
+- [x] Reconcile source calls with the live function catalog and record the mismatch.
+- [ ] Establish provenance for `restrict_auth_rpc_execution`.
+- [ ] Validate the checked-in auth RPC migration and RLS/grants in an approved non-production Supabase environment.
+- [ ] Add a non-mutating readiness/contract check for the required RPCs.
+- **Status:** source/live inventory is documented; contract reconciliation remains **BLOCKED**. The Supabase development branch `main` reports `MIGRATIONS_FAILED`; it was not reset, rebased, merged or migrated.
+- **Evidence:** [issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [implementation PR #17](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/17).
