@@ -25,7 +25,7 @@ async function getFreePort() {
 async function waitForServer(baseUrl, child, logs) {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
+    if (child.exitCode !== null || child.signalCode !== null) {
       throw new Error("Next.js exited before becoming ready.\n" + logs());
     }
     try {
@@ -38,10 +38,19 @@ async function waitForServer(baseUrl, child, logs) {
 }
 
 async function stopProcess(child) {
-  if (!child || child.exitCode !== null) return;
-  child.kill("SIGTERM");
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const signalProcessGroup = (signal) => {
+    if (process.platform !== "win32" && child.pid) {
+      try {
+        process.kill(-child.pid, signal);
+        return;
+      } catch {}
+    }
+    child.kill(signal);
+  };
+  signalProcessGroup("SIGTERM");
   await Promise.race([once(child, "exit").catch(() => {}), delay(3000)]);
-  if (child.exitCode === null) child.kill("SIGKILL");
+  if (child.exitCode === null && child.signalCode === null) signalProcessGroup("SIGKILL");
 }
 
 test("admin detail dialog supports real keyboard focus behavior and responsive viewports", { timeout: 180000 }, async () => {
@@ -67,14 +76,26 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
   assert.ok(chromeName, "GitHub runner must provide Chrome/Chromium; no npm browser dependency is added.");
 
   try {
-    server = spawn("npm", ["run", "dev", "--", "--port", String(port)], {
+    const serverEnv = {
+      ...process.env,
+      NEXT_PUBLIC_AUTH_API_URL: baseUrl,
+      NEXT_PUBLIC_AUTH_MODE: "legacy",
+      NEXT_TELEMETRY_DISABLED: "1",
+    };
+    delete serverEnv.SUPABASE_SERVICE_ROLE_KEY;
+    delete serverEnv.SUPABASE_URL;
+    delete serverEnv.DATABASE_URL;
+    server = spawn(process.execPath, [
+      join(webRoot, "node_modules", "next", "dist", "bin", "next"),
+      "dev",
+      "-H",
+      "0.0.0.0",
+      "--port",
+      String(port),
+    ], {
       cwd: webRoot,
-      env: {
-        ...process.env,
-        NEXT_PUBLIC_AUTH_API_URL: baseUrl,
-        NEXT_PUBLIC_AUTH_MODE: "legacy",
-        NEXT_TELEMETRY_DISABLED: "1",
-      },
+      env: serverEnv,
+      detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
     server.stdout.on("data", (chunk) => appendLog("server", chunk));
@@ -94,7 +115,7 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
       "--remote-allow-origins=*",
       "--user-data-dir=" + profileDir,
       "about:blank",
-    ], { stdio: ["ignore", "ignore", "pipe"] });
+    ], { detached: process.platform !== "win32", stdio: ["ignore", "ignore", "pipe"] });
     chrome.stderr.on("data", (chunk) => appendLog("chrome", chunk));
 
     let activePort;
