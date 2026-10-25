@@ -29,6 +29,8 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (!accessToken || user?.role !== "ADMIN") return;
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     void authApi.adminUsers(accessToken, {
       query: appliedQuery.trim() || undefined,
       role: role || undefined,
