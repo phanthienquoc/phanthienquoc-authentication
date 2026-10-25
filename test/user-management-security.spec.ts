@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AuthRepository, AuthUser } from '../src/auth/auth.repository';
@@ -107,6 +108,49 @@ describe('User-management security contracts', () => {
     const input = plainToInstance(ListUsersDto, { page: 1, limit: 101 });
     const errors = await validate(input);
     expect(errors.map((error) => error.property)).toContain('limit');
+  });
+
+  it('normalizes thrown admin-list query failures without leaking dependency details', async () => {
+    const query = {
+      select: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      range: jest.fn().mockReturnThis(),
+      returns: jest.fn().mockRejectedValue(new Error('private list connection detail')),
+    };
+    const supabase = {
+      db: { from: jest.fn().mockReturnValue(query) },
+    } as unknown as SupabaseClientService;
+    const service = new UsersManagementService(supabase);
+
+    try {
+      await service.list({ page: 1, limit: 25 } as ListUsersDto);
+      fail('expected directory query to fail closed');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      expect((error as Error).message).toContain('Unable to load user directory');
+      expect((error as Error).message).not.toContain('private list connection detail');
+    }
+  });
+
+  it('normalizes thrown admin-detail query failures without leaking dependency details', async () => {
+    const query = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockRejectedValue(new Error('private detail connection detail')),
+    };
+    const supabase = {
+      db: { from: jest.fn().mockReturnValue(query) },
+    } as unknown as SupabaseClientService;
+    const service = new UsersManagementService(supabase);
+
+    try {
+      await service.getById('user-2');
+      fail('expected detail query to fail closed');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      expect((error as Error).message).toContain('Unable to load user details');
+      expect((error as Error).message).not.toContain('private detail connection detail');
+    }
   });
 
   it('rejects caller-supplied role fields during signup DTO validation', async () => {
