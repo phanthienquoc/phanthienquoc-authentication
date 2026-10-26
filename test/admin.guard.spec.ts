@@ -56,7 +56,7 @@ describe('AdminGuard', () => {
       reasonCode: 'POLICY_VIOLATION',
       requestId: 'request-123',
     });
-    expect(JSON.stringify(audit.record.mock.calls)).not.toContain('signed-token');
+    expect(JSON.stringify((audit.record as jest.Mock).mock.calls)).not.toContain('signed-token');
   });
 
   it('allows a caller whose current database role is ADMIN', async () => {
