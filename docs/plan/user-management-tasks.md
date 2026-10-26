@@ -525,3 +525,20 @@
 - **Advisors/logs:** Security advisors report 35 project-wide RLS-enabled/no-policy findings, one SECURITY DEFINER view, eight mutable search paths, 42 anon and 42 authenticated GraphQL-exposure findings, and leaked-password protection disabled. Performance advisors report 15 unindexed foreign keys, one table without a primary key, and 134 unused indexes. These are project-wide; no unrelated schema remediation was attempted. The bounded `2026-10-26T17:00:00Z`–`17:32:06Z` log query returned 4,426 edge log records (including a `claim_video_generation_job` event) and 14 Postgres log records. This is activity evidence only, not proof of production/non-production classification or merge causality.
 - **UM-4 source slice:** Test/code head `033ba9f269f433e9c5d9ba6eaa6f9db4ab93d1e3` passed Auth Service CI run [#40361240753](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40361240753); test, typecheck, build and container-build steps all succeeded. Later PR commits refresh only docs/evidence and need a fresh exact-head CI result. The HTTP test uses a real Nest HTTP pipeline with mocked Supabase and verifies actor derivation, recent-MFA/admin gates, denial paths, audit metadata and allowlist redaction. This is not live DB/session/MFA/passkey integration.
 - **Decision/safety:** PR #75 remains open and mergeable. AUTH-OPS-007 remains BLOCKED because the connected Supabase GitHub integration settings cannot be inspected through the available authorized tools and official docs confirm a connected `main` can deploy DB changes. No migration/schema/data write, branch creation, Edge Function deployment, workflow dispatch, production release, live account mutation or trading/order action occurred. No `platform-infra` or Media Generation repository was accessed.
+
+
+### AUTH-UM-004B — Reject suspended accounts during Keycloak SSO session exchange
+
+- **Priority/status:** P1 / IMPLEMENTED IN PR #75; exact-head CI pending after this test addition.
+- **Evidence:** `test/auth-keycloak-session.spec.ts`, `src/auth/auth.service.ts`, and the current Auth User Management roadmap.
+- **Current behavior:** `AuthService.loginWithKeycloak` resolves an existing account by normalized email and rejects missing, non-active, or MFA-enabled accounts before issuing the app session. The existing tests covered missing accounts, MFA preservation, and active-account session exchange, but did not lock the suspended-account branch.
+- **Desired behavior:** A verified Keycloak identity must never exchange into an app session for a suspended local account; no session-issuance helper may run.
+- **Acceptance criteria:**
+  - [x] Add a regression test with a synthetic `SUSPENDED` account.
+  - [x] Assert the Keycloak exchange rejects with `UnauthorizedException`.
+  - [x] Assert `issueLoginForUser` is not called.
+  - [ ] Recheck Auth Service CI on the exact updated PR head before considering the test slice complete.
+- **Validation:** Source-level only. No Keycloak token, live account, Supabase write, session creation, migration, deployment, or production release is used by the test. Existing Auth Service CI on the prior PR #75 head passed run [#40370364354](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40370364354); the updated head must receive a fresh result.
+- **Dependencies:** Existing UM-2 suspension enforcement and AUTH-UM-004A; does not depend on live Supabase integration.
+- **Risk:** Low — test-only regression coverage; no runtime behavior change.
+- **Links:** [PR #75](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/75), [AuthService Keycloak session exchange](../test/auth-keycloak-session.spec.ts).
