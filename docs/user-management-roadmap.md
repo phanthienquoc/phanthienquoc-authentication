@@ -194,7 +194,7 @@ Inspect actual tables, migrations, role claims, login/refresh/MFA/passkey paths,
 ### UM-1 — Secure admin API foundation (implemented)
 **Status:** UM-1A/UM-1B merged. The centralized deny-by-default AdminGuard, allowlisted read responses, typed server-side audit writer and RPC-only audit access are implemented and covered by service tests. Lifecycle mutations were held until the UM-2 authorization/recent-MFA/concurrency/audit gates passed.
 
-**Signup hardening follow-up:** The public DTO already excludes role and signup explicitly supplies `USER`; task `AUTH-UM-001A5` removes caller-controlled role input from the repository create contract and hardcodes `USER` at the persistence boundary. The code/test slice is in progress; exact-head CI and merge gate are pending.
+**Signup hardening follow-up:** The public DTO already excludes role and signup explicitly supplies `USER`; task `AUTH-UM-001A5` removes caller-controlled role input from the repository create contract and hardcodes `USER` at the persistence boundary. The implementation is in PR #71. Code/test head `71d7e4f3d3934d3cbdd9e41e0896adad6f76b264` passed Auth Service CI [run #40325489704](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40325489704), including tests, typecheck, build and container build. The Supabase merge side-effect gate remains pending.
 
 ### UM-2 — Account lifecycle
 
