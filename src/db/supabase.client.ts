@@ -70,7 +70,7 @@ export class SupabaseClientService {
 
   private async fetchRestSchemaPaths(url: string, key: string): Promise<ReadonlySet<string>> {
     try {
-      const response = await fetch(`${url.replace(/\/+$/, ''))}/rest/v1/`, {
+      const response = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/`, {
         method: 'GET',
         headers: {
           apikey: key,
