@@ -76,12 +76,14 @@ describe('UsersManagementController route security contract', () => {
 
     const service = { updateRole: jest.fn() } as unknown as UsersManagementService;
     const controller = new UsersManagementController(service);
-    await expect(controller.updateRole(
+    // The controller intentionally throws synchronously before invoking the service
+    // when the guard-populated principal is absent.
+    expect(() => controller.updateRole(
       '11111111-1111-4111-8111-111111111111',
       { role: 'USER', reasonCode: 'SECURITY_REVIEW' },
       {} as AdminRequest,
       'request-123',
-    )).rejects.toBeInstanceOf(ForbiddenException);
+    )).toThrow(ForbiddenException);
     expect(service.updateRole).not.toHaveBeenCalled();
   });
 });
