@@ -44,7 +44,7 @@ describe('AuthRepository.ready RPC contract', () => {
   });
 
   it('fails readiness when a required RPC is absent', async () => {
-    const { supabase } = createSupabase(requiredRpcPaths.slice(0, -1));
+    const { supabase } = createSupabase(requiredRpcPaths.filter((path) => path !== '/rpc/auth_rotate_refresh_session'));
     const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
 
     await expect(repository.ready()).rejects.toBeInstanceOf(ServiceUnavailableException);
