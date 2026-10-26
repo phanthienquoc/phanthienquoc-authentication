@@ -1,6 +1,7 @@
 -- UM-2A: additive account status and suspension enforcement.
--- Source only in this PR. Do not apply until the Supabase target is explicitly
--- classified as safe non-production and migration-history drift is reconciled.
+-- Applied to the owner-confirmed non-production shared Supabase project on 2026-10-26.
+-- Live migration ledger version: 20261026080831 auth_user_status_enforcement.
+-- Source SQL matches the SQL statements submitted through the connected Supabase tools.
 
 alter table public.users
   add column if not exists status text not null default 'ACTIVE';
