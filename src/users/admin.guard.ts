@@ -27,14 +27,14 @@ export class AdminGuard implements CanActivate {
     if (!match) throw new UnauthorizedException('Bearer access token required');
 
     const claims = this.jwt.verify(match[1]);
-    let data: { id: string; role: string } | null = null;
+    let data: { id: string; role: string; status: string } | null = null;
     let error: unknown = null;
     try {
       const result = await this.supabase.db
         .from('users')
-        .select('id,role')
+        .select('id,role,status')
         .eq('id', claims.sub)
-        .maybeSingle<{ id: string; role: string }>();
+        .maybeSingle<{ id: string; role: string; status: string }>();
       data = result.data;
       error = result.error;
     } catch {
@@ -43,7 +43,9 @@ export class AdminGuard implements CanActivate {
     }
 
     if (error) throw new ServiceUnavailableException('Unable to verify administrator access');
-    if (!data || data.role !== 'ADMIN') throw new ForbiddenException('Administrator access required');
+    if (!data || data.role !== 'ADMIN' || data.status !== 'ACTIVE') {
+      throw new ForbiddenException('Administrator access required');
+    }
 
     request.adminPrincipal = { id: data.id, role: 'ADMIN' };
     return true;

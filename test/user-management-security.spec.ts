@@ -16,6 +16,7 @@ describe('User-management security contracts', () => {
     email: 'person@example.com',
     passwordHash: 'password-hash-must-not-escape',
     role: 'ADMIN',
+    status: 'ACTIVE',
     mfaEnabled: true,
     mfaSecretEncrypted: 'encrypted-mfa-secret-must-not-escape',
   };

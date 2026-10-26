@@ -11,6 +11,7 @@ describe('AuthRepository refresh RPC contract', () => {
           id: 'user-1',
           email: 'person@example.com',
           role: 'USER',
+          status: 'ACTIVE',
           mfa_enabled: true,
           mfa_secret_encrypted: null,
         },
@@ -44,11 +45,76 @@ describe('AuthRepository refresh RPC contract', () => {
         id: 'user-1',
         email: 'person@example.com',
         role: 'USER',
+        status: 'ACTIVE',
         mfaEnabled: true,
       },
     });
     expect(result).not.toHaveProperty('user.passwordHash');
     expect(result).not.toHaveProperty('user.mfaSecretEncrypted');
+  });
+
+  it('creates a refresh session through the status-aware atomic RPC', async () => {
+    const rpc = jest.fn().mockResolvedValue({ data: true, error: null });
+    const repository = new AuthRepository({ db: { rpc } } as unknown as SupabaseClientService);
+
+    await repository.createRefreshSession({
+      sessionId: 'session-1',
+      userId: 'user-1',
+      familyId: 'family-1',
+      tokenHash: 'token-hash',
+      expiresAt: new Date('2026-10-27T00:00:00.000Z'),
+      ip: '203.0.113.5',
+      userAgent: 'unit-test',
+    });
+
+    expect(rpc).toHaveBeenCalledWith('auth_create_refresh_session', {
+      p_session_id: 'session-1',
+      p_user_id: 'user-1',
+      p_family_id: 'family-1',
+      p_token_hash: 'token-hash',
+      p_expires_at: '2026-10-27T00:00:00.000Z',
+      p_ip: '203.0.113.5',
+      p_user_agent: 'unit-test',
+    });
+  });
+
+  it('refuses to create a refresh session when the atomic RPC reports an inactive account', async () => {
+    const rpc = jest.fn().mockResolvedValue({ data: false, error: null });
+    const repository = new AuthRepository({ db: { rpc } } as unknown as SupabaseClientService);
+
+    await expect(repository.createRefreshSession({
+      sessionId: 'session-1',
+      userId: 'user-1',
+      familyId: 'family-1',
+      tokenHash: 'token-hash',
+      expiresAt: new Date('2026-10-27T00:00:00.000Z'),
+    })).rejects.toThrow('Invalid credentials');
+  });
+
+  it('fails closed if a refresh RPC returns a suspended user projection', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: {
+        status: 'rotated',
+        family_id: 'family-1',
+        user: {
+          id: 'user-1',
+          email: 'person@example.com',
+          role: 'USER',
+          status: 'SUSPENDED',
+          mfa_enabled: false,
+          mfa_secret_encrypted: null,
+        },
+      },
+      error: null,
+    });
+    const repository = new AuthRepository({ db: { rpc } } as unknown as SupabaseClientService);
+
+    await expect(repository.rotateRefreshSession({
+      tokenHash: 'token-hash',
+      nextSessionId: 'session-2',
+      nextTokenHash: 'next-token-hash',
+      expiresAt: new Date('2026-10-27T00:00:00.000Z'),
+    })).rejects.toThrow('Refresh session invalid or expired');
   });
 
   it('fails closed for invalid or missing refresh RPC results', async () => {

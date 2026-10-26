@@ -12,6 +12,7 @@ const requiredRpcPaths = [
   '/rpc/auth_record_mfa_login_failure',
   '/rpc/auth_consume_mfa_login_challenge',
   '/rpc/auth_consume_mfa_login_recovery',
+  '/rpc/auth_create_refresh_session',
 ] as const;
 
 function createSupabase(paths: readonly string[]) {
@@ -28,11 +29,13 @@ function createSupabase(paths: readonly string[]) {
 
 describe('AuthRepository.ready RPC contract', () => {
   it('requires every authentication RPC in the read-only PostgREST schema', async () => {
-    const { supabase } = createSupabase(requiredRpcPaths);
+    const { supabase, query } = createSupabase(requiredRpcPaths);
     const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
 
     await expect(repository.ready()).resolves.toBeUndefined();
     expect(supabase.db.from).toHaveBeenCalledTimes(5);
+    expect(query.select).toHaveBeenNthCalledWith(1, 'id,status');
+    expect(query.select).toHaveBeenNthCalledWith(2, 'id');
     expect(supabase.getRestSchemaPaths).toHaveBeenCalledTimes(1);
   });
 
