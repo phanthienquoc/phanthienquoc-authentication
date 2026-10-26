@@ -18,19 +18,43 @@ type HarnessOptions = {
 };
 
 async function createHarness(options: HarnessOptions = {}) {
-  const userQuery = {
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    maybeSingle: jest.fn().mockResolvedValue({
-      data: {
-        id: ADMIN_ID,
-        role: options.role ?? 'ADMIN',
-        status: options.status ?? 'ACTIVE',
-        mfa_enabled: options.mfaEnabled ?? true,
-      },
-      error: null,
-    }),
+  const adminRow = {
+    id: ADMIN_ID,
+    role: options.role ?? 'ADMIN',
+    status: options.status ?? 'ACTIVE',
+    mfa_enabled: options.mfaEnabled ?? true,
   };
+  const directoryRow = {
+    id: TARGET_ID,
+    email: 'target@example.com',
+    role: 'USER',
+    status: 'ACTIVE',
+    mfa_enabled: false,
+    password_hash: 'must-not-escape-password-hash',
+    mfa_secret_encrypted: 'must-not-escape-mfa-secret',
+    token_hash: 'must-not-escape-token-hash',
+    recovery_code: 'must-not-escape-recovery-code',
+    passkey_public_key: 'must-not-escape-passkey-material',
+  };
+  let selectedColumns = '';
+  const userQuery: Record<string, any> = {};
+  userQuery.select = jest.fn((columns: string) => {
+    selectedColumns = columns;
+    return userQuery;
+  });
+  userQuery.eq = jest.fn().mockReturnValue(userQuery);
+  userQuery.order = jest.fn().mockReturnValue(userQuery);
+  userQuery.range = jest.fn().mockReturnValue(userQuery);
+  userQuery.ilike = jest.fn().mockReturnValue(userQuery);
+  userQuery.maybeSingle = jest.fn().mockImplementation(async () => ({
+    data: selectedColumns.includes('email') ? directoryRow : adminRow,
+    error: null,
+  }));
+  userQuery.returns = jest.fn().mockResolvedValue({
+    data: [directoryRow],
+    error: null,
+    count: 1,
+  });
   const from = jest.fn().mockReturnValue(userQuery);
   const rpc = jest.fn(async (name: string) => {
     if (name === 'auth_admin_update_user_role') {
@@ -161,6 +185,78 @@ describe('Admin user lifecycle HTTP contract', () => {
       expect(response.status).toBe(401);
       expect(harness.from).not.toHaveBeenCalled();
       expect(harness.rpc).not.toHaveBeenCalled();
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('returns the guarded paginated user directory with an allowlisted response', async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.url}/api/admin/users`, {
+        headers: { Authorization: 'Bearer synthetic-test-token' },
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload).toEqual({
+        items: [{
+          id: TARGET_ID,
+          email: 'target@example.com',
+          role: 'USER',
+          status: 'ACTIVE',
+          mfaEnabled: false,
+        }],
+        page: 1,
+        limit: 25,
+        total: 1,
+        totalPages: 1,
+      });
+      expect(harness.from).toHaveBeenCalledTimes(2);
+      expect(harness.rpc).not.toHaveBeenCalled();
+      const serialized = JSON.stringify(payload);
+      for (const secret of [
+        'must-not-escape-password-hash',
+        'must-not-escape-mfa-secret',
+        'must-not-escape-token-hash',
+        'must-not-escape-recovery-code',
+        'must-not-escape-passkey-material',
+      ]) {
+        expect(serialized).not.toContain(secret);
+      }
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('returns protected user details with an allowlisted response', async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.url}/api/admin/users/${TARGET_ID}`, {
+        headers: { Authorization: 'Bearer synthetic-test-token' },
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload).toEqual({
+        user: {
+          id: TARGET_ID,
+          email: 'target@example.com',
+          role: 'USER',
+          status: 'ACTIVE',
+          mfaEnabled: false,
+        },
+      });
+      expect(harness.from).toHaveBeenCalledTimes(2);
+      expect(harness.rpc).not.toHaveBeenCalled();
+      const serialized = JSON.stringify(payload);
+      for (const secret of [
+        'must-not-escape-password-hash',
+        'must-not-escape-mfa-secret',
+        'must-not-escape-token-hash',
+        'must-not-escape-recovery-code',
+        'must-not-escape-passkey-material',
+      ]) {
+        expect(serialized).not.toContain(secret);
+      }
     } finally {
       await harness.app.close();
     }
