@@ -28,6 +28,7 @@ export default function AdminUsersPage() {
   const [pendingMutation, setPendingMutation] = useState<PendingMutation | null>(null);
   const [mutationReason, setMutationReason] = useState<UserMutationReasonCode>("ADMIN_REQUEST");
   const [mutationBusy, setMutationBusy] = useState(false);
+  const mutationBusyRef = useRef(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationNotice, setMutationNotice] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -109,6 +110,10 @@ export default function AdminUsersPage() {
     function onDialogKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
+        // Do not dismiss the confirmation while a privileged mutation is in flight.
+        // The handler is registered by the selected-user effect, so use a ref rather
+        // than a captured React state value that could be stale.
+        if (mutationBusyRef.current) return;
         setSelected(null);
         setPendingMutation(null);
         setMutationError(null);
@@ -171,7 +176,8 @@ export default function AdminUsersPage() {
   }
 
   async function confirmMutation() {
-    if (!accessToken || !selected || !pendingMutation || mutationBusy) return;
+    if (!accessToken || !selected || !pendingMutation || mutationBusyRef.current) return;
+    mutationBusyRef.current = true;
     setMutationBusy(true);
     setMutationError(null);
     try {
@@ -205,6 +211,7 @@ export default function AdminUsersPage() {
     } catch (cause: unknown) {
       setMutationError(cause instanceof Error ? cause.message : "Unable to complete the account action.");
     } finally {
+      mutationBusyRef.current = false;
       setMutationBusy(false);
     }
   }
