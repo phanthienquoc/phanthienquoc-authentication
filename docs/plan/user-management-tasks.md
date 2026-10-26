@@ -185,17 +185,19 @@
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
 - **Priority/status:** P1 / OPEN — cross-cutting auth security follow-up tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
-- **Evidence:** `src/auth/auth.controller.ts` (`mfa/login`, `mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `web/src/features/auth/auth-store.ts`.
-- **Current behavior:** MFA completion accepts `userId + code`; pending MFA state is held in the browser store and is not a server-issued, expiring challenge bound to successful password verification. No explicit NestJS rate-limit guard is visible in this repository.
-- **Desired behavior:** Short-lived, one-time server challenge bound to the user/session, bounded attempts and safe invalidation.
+- **Evidence:** `src/auth/auth.module.ts`, `src/auth/auth.controller.ts` (`POST mfa/login`, `POST mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `src/auth/passkey.service.ts`, `web/src/features/auth/auth-store.ts`.
+- **Current behavior:** The registered `AuthModule` exposes only `AuthController`. Its active MFA login/recovery routes accept `userId + code`; password and passkey login return `mfaRequired + userId`, and the pending state is held in the browser store rather than a server-issued, expiring challenge bound to successful first-factor verification. `src/auth/mfa.controller.ts` contains duplicate MFA routes but is not registered in `AuthModule`; do not register it as a workaround. No explicit NestJS rate-limit guard is visible in this repository; gateway rate limiting has not been verified.
+- **Desired behavior:** Short-lived, one-time server challenge bound to the successful first factor, user and session; bounded attempts, safe invalidation and consistent behavior across password/passkey MFA and recovery.
 - **Acceptance criteria:**
-  - MFA cannot complete for a user without a prior server-validated first factor.
-  - Challenge is one-time, short-lived and bound to the correct user/session; attempts are rate-limited.
-  - Recovery codes remain one-time; errors are generic and audit records contain no codes/secrets.
-- **Validation:** Controller/service tests for missing, expired, replayed and cross-user challenges; rate-limit tests; verify gateway rate limiting separately before rollout.
-- **Dependencies:** Coordinate with AUTH-UM-000 RPC/schema reconciliation; preserve existing active-account login contracts with compatibility tests.
-- **Risk:** High — second-factor completion should not be represented solely by client-side state.
-- **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
+  - [ ] MFA cannot complete for a user without a prior server-validated first factor.
+  - [ ] Challenge is one-time, short-lived and bound to the correct user/session; attempts are rate-limited.
+  - [ ] Password and passkey MFA paths share the same server challenge contract; recovery codes remain one-time.
+  - [ ] Missing, expired, replayed and cross-user challenges fail closed with generic errors; audit records contain no codes/secrets.
+  - [ ] The unregistered duplicate `MfaController` remains unregistered until its behavior is reconciled or the duplicate is removed with tests.
+- **Validation:** Controller/service tests for missing, expired, replayed and cross-user challenges; password/passkey MFA parity tests; rate-limit tests; verify gateway rate limiting separately before rollout.
+- **Dependencies:** Coordinate with AUTH-UM-000 RPC/schema reconciliation; choose durable server-side challenge storage only after authoritative migration provenance and an explicitly approved non-production Supabase target. Preserve existing active-account login contracts with compatibility tests.
+- **Risk:** High — second-factor completion is currently represented by client-held user ID and code, not a server-issued first-factor challenge.
+- **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [AuthModule](../../src/auth/auth.module.ts), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
 
 ### AUTH-UM-001A2 — Normalize thrown admin role-lookup failures
 
