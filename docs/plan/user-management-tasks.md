@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 13:54 +07:00  
+**Last audited:** 2026-10-26 14:35 +07:00  
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -384,3 +384,38 @@
 - **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, AUTH-SEC-001, AUTH-UM-002A, AUTH-OPS-002.
 - **Risk:** Critical — role escalation, administrator lockout, active sessions after suspension, or unaudited privilege changes.
 - **Links:** [PR #60](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/60), [Roadmap](../user-management-roadmap.md), [UM-2A branch](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um-2-suspension-enforcement-20261026).
+
+
+### AUTH-UM-002B1 — Require recent MFA assurance for privileged lifecycle mutations
+
+- **Priority/status:** P0 / IMPLEMENTED ON PR #60; exact-head CI pending as of 2026-10-26 14:35 +07:00.
+- **Evidence:** `src/auth/jwt.service.ts`, `src/auth/auth.service.ts`, `src/users/admin.guard.ts`, `src/users/recent-mfa.guard.ts`, `src/users/users-management.controller.ts`, `test/auth-mfa-assurance.spec.ts`, `test/recent-mfa.guard.spec.ts`, and `test/users-management.controller.spec.ts`.
+- **Current behavior before this slice:** Access JWTs carried no MFA assurance timestamp; the database-backed AdminGuard verified current ADMIN/ACTIVE status but privileged lifecycle routes did not require recent MFA.
+- **Desired behavior:** Only a token minted after successful TOTP or recovery-code completion carries signed `mfa_verified_at`. Each role/status/session mutation additionally requires current database `mfa_enabled=true`, a non-future assurance timestamp no older than 300 seconds, and a persisted allowlisted denial audit if the requirement is not met. Password-only and refresh-issued tokens do not carry or preserve MFA assurance. Read-only list/detail routes remain available to active admins without this mutation-only gate.
+- **Acceptance criteria:**
+  - [x] Add optional, validated signed `mfa_verified_at` to access claims; ordinary issuance omits it.
+  - [x] Stamp successful TOTP and recovery-code completion; refresh does not carry the claim forward.
+  - [x] Enforce the five-minute, database-enabled MFA gate on all three lifecycle mutation routes only.
+  - [x] Audit missing/stale/future/disabled-MFA denials with allowlisted metadata and fail closed if audit persistence fails.
+  - [x] Add unit and controller metadata regression tests without exposing tokens or secrets.
+  - [ ] Exact-head Auth Service CI passes after these changes.
+  - [ ] Reconfirm the full UM stack on a safe, explicitly approved non-production target; no production migration or deployment.
+- **Dependencies:** PR #55 MFA challenge flow, PR #59 account status enforcement, and PR #60 lifecycle mutation routes.
+- **Risk:** High — this is a privileged authorization gate. Missing assurance intentionally denies mutations; after access-token refresh the administrator must authenticate through MFA again.
+- **Links:** [PR #60](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/60), [roadmap](../user-management-roadmap.md).
+
+### AUTH-OPS-003 — Investigate recurring PostgREST root endpoint timeouts
+
+- **Priority/status:** P1 / INVESTIGATING — read-only evidence only; root cause not yet proven.
+- **Evidence:** Supabase unified logs for project `gtqovpusfyyvxpeezxlo`, window `2026-10-26T06:30:00Z`–`2026-10-26T07:35:00Z` (13:30–14:35 ICT), returned 63 `postgrest_logs` rows with `Warp server error: Thread killed by timeout manager` and `log_attributes['path'] = '/'`. A separate aggregate returned 46 exact base-message rows plus expanded/duplicated message variants. `edge_logs` returned 1,554 `auth_passkey_*` request events in the same window, but its path metadata was blank; that does not establish causation.
+- **Current behavior / hypothesis:** `AuthRepository.ready()` probes five public tables and then performs a GET of the PostgREST OpenAPI root (`/rest/v1/`) to validate required RPC paths; `GET /auth/status` calls this readiness method. The root-path timeout pattern is consistent with that schema-introspection request but has not been correlated to a specific caller, so treat this as a hypothesis only.
+- **Desired behavior:** Identify the timed-out request and caller; preserve fail-closed schema readiness while avoiding unbounded/repeated expensive introspection. Do not weaken contract checks or log credentials, tokens, hashes, MFA/recovery data, passkey material, or account rows.
+- **Acceptance criteria:**
+  - [x] Use read-only aggregate log queries and inspect the exact readiness/OpenAPI call path.
+  - [ ] Correlate request identifiers/timing and confirm whether readiness polling is the caller.
+  - [ ] Reproduce on an explicitly approved non-production environment.
+  - [ ] If code is the root cause, add bounded/cached readiness behavior with tests and recheck exact-head CI; do not change shared-project settings from this task.
+  - [ ] Verify no new PostgREST timeout recurrence after an approved fix/validation window.
+- **Dependencies:** Verified runtime URL mapping and safe non-production integration target.
+- **Risk:** Medium/high — persistent API timeout behavior may affect health/readiness, but no production mutation is authorized.
+- **Links:** [Supabase API security guidance](https://supabase.com/docs/guides/api/securing-your-api), [Auth repository readiness implementation](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/master/src/auth/auth.repository.ts), [Auth status endpoint](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/master/src/auth/auth.controller.ts).
