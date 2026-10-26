@@ -326,7 +326,7 @@
 
 ### AUTH-UM-004B — HTTP-level lifecycle route contract
 
-- **Priority/status:** P1 / IMPLEMENTED IN PR — mocked HTTP pipeline only; exact-head CI pending.
+- **Priority/status:** P1 / TEST VERIFIED IN PR — mocked HTTP pipeline only; live UM-4 acceptance remains blocked. Auth Service CI passed on test/code head `cfd1c29010076c045ee8d2436362a1d97f844064` ([run #40342859867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40342859867)); Supabase Preview was skipped, not passed.
 - **Evidence:** `test/users-management.http.spec.ts`, `src/users/users-management.controller.ts`, `src/users/admin.guard.ts`, `src/users/recent-mfa.guard.ts`, `src/users/users-management.service.ts`, and the live read-only RPC catalog/ACL evidence recorded under AUTH-UM-000.
 - **Current behavior:** Existing guard, controller-metadata and service tests cover individual layers, but did not start the Nest HTTP application and exercise the lifecycle route, global validation pipe, guard ordering and serialized response together.
 - **Desired behavior:** Verify the real Nest HTTP boundary using a mocked service-role Supabase client, without contacting or mutating the live database.
@@ -336,9 +336,9 @@
   - [x] An active admin with recent MFA reaches `auth_admin_update_user_status` with the migration-named arguments and receives only allowlisted response fields.
   - [x] Non-admin and stale-MFA requests are denied, audit only allowlisted metadata, and never invoke the lifecycle mutation RPC.
   - [x] Caller-supplied actor identity is rejected before any database RPC.
-  - [ ] Exact-head Auth Service CI passes tests, typecheck, build and container build.
+  - [x] Auth Service CI passed on test/code head `cfd1c29010076c045ee8d2436362a1d97f844064` ([run #40342859867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40342859867)): tests, typecheck, build and container build succeeded; Supabase Preview was skipped.
   - [ ] Keep live HTTP/session/MFA/passkey integration blocked until runtime-to-project mapping is authoritative and every required write operation is separately authorized.
-- **Validation:** Pending exact-head CI. All Supabase calls in this test are mocked; no external database, schema/data write, migration or release is used.
+- **Validation:** Exact-head Auth Service CI passed on test/code head `cfd1c29010076c045ee8d2436362a1d97f844064` ([run #40342859867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40342859867)). All Supabase calls in this test are mocked; no external database, schema/data write, migration or release is used. Supabase Preview was skipped and does not count as integration evidence.
 - **Dependencies:** AUTH-UM-000 through AUTH-UM-003, AUTH-OPS-001 and the runtime/integration mapping gate.
 - **Risk:** Medium — this test closes an application-boundary coverage gap but must not be mistaken for live runtime or gateway verification.
 - **Links:** [HTTP contract test](../../test/users-management.http.spec.ts), [controller](../../src/users/users-management.controller.ts), [AdminGuard](../../src/users/admin.guard.ts), [RecentMfaGuard](../../src/users/recent-mfa.guard.ts).
