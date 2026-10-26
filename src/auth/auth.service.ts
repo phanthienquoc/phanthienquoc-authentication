@@ -57,7 +57,7 @@ export class AuthService {
   }
 
   async issueLoginForUser(user: AuthUser, context: {
-    userAgent?: string; ip?: string; response?: Response;
+    userAgent?: string; ip?: string; response?: Response; mfaVerifiedAt?: number;
   }) {
     if (user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     const refreshToken = randomBytes(48).toString('base64url');
@@ -74,7 +74,10 @@ export class AuthService {
     });
     if (context.response) this.setRefreshCookie(context.response, refreshToken);
     // Refresh token is only delivered by the HttpOnly cookie, never duplicated in JSON.
-    return { accessToken: this.jwt.issue(user.id, user.role) };
+    const accessToken = context.mfaVerifiedAt === undefined
+      ? this.jwt.issue(user.id, user.role)
+      : this.jwt.issue(user.id, user.role, context.mfaVerifiedAt);
+    return { accessToken };
   }
 
   async me(userId: string) {
@@ -151,13 +154,13 @@ export class AuthService {
   async completeMfaLogin(user: AuthUser, context: {
     userAgent?: string; ip?: string; response: Response;
   }) {
-    return this.issueLoginForUser(user, context);
+    return this.issueLoginForUser(user, { ...context, mfaVerifiedAt: Math.floor(Date.now() / 1000) });
   }
 
   async completeMfaRecoveryLogin(user: AuthUser, context: {
     userAgent?: string; ip?: string; response: Response;
   }) {
-    return this.issueLoginForUser(user, context);
+    return this.issueLoginForUser(user, { ...context, mfaVerifiedAt: Math.floor(Date.now() / 1000) });
   }
 
   clearRefreshCookie(response: Response) {
