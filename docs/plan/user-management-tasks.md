@@ -65,7 +65,7 @@
   - [x] Record read-only live migration-ledger, function signature/ACL, table/RLS and grant evidence without reading account rows or mutating the shared project.
   - [x] Record recovery options; do not reset, merge, rebase or migrate the shared live project.
 - **Historical pre-migration validation record:** PR #27 exact tested head `6c5d6ee9d524ee365a07111a7ee04aa4056548ed`; [auth-service CI #40213420324](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40213420324) passed tests, typecheck, build and container build. Read-only catalog queries on 2026-10-26 confirmed the live table columns, RLS/policy state, direct table grants and legacy function signatures/ACLs without reading account rows. At that pre-migration checkpoint, the source/live RPC mismatch was confirmed. The Supabase App check on PR #40 merge failed with `Remote migration versions not found in local migrations directory`; the non-persistent branch reported `MIGRATIONS_FAILED`. No migration had been applied at that earlier checkpoint.
-- **Dependencies:** Matching source migration and TypeScript contract test are part of this PR. Remote-only migration provenance, account-status schema, audit persistence, and the server-issued MFA challenge are separate tasks.
+- **Dependencies:** Matching source migration and TypeScript contract test are on `master`; remote-only migration provenance and Keycloak version reconciliation remain open. Account-status schema and suspension enforcement are the next UM-2 prerequisites; the server-issued MFA challenge remains in blocked PR #55.
 - **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge. Readiness now fails closed instead of falsely reporting table-only readiness.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27), [historical auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql), [applied contract reconciliation migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql).
 
@@ -200,11 +200,11 @@
 - **Current behavior:** PR #47 browser coverage verifies initial focus, focus restoration, Escape dismissal, accessible scrolling and non-admin API denial; all Auth API responses are mocked and the route remains read-only.
 - **Desired behavior:** Opening the panel focuses its close control; Tab/Shift+Tab remain inside the modal dialog; Escape closes it; closing restores focus to the originating account row.
 - **Acceptance criteria:**
-  - Preserve the read-only directory and current API contract; no mutation UI.
-  - Use accessible dialog semantics and keyboard dismissal.
-  - Keep focus inside the open dialog and restore focus to the trigger after close.
-  - Add regression coverage for the keyboard/focus contract without adding an unapproved test dependency.
-- **Validation:** Exact tested head `b37238b21cc6ba9bc03113854b28554b5c15a24d`: [auth-web CI #40214171528](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171528) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and frontend container build; [auth-service CI #40214171499](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171499) passed `npm test`, `npm run typecheck`, `npm run build` and container build. The PR diff was reviewed; no server/auth/data-access changes. These are source-level contract tests, not browser-level interaction proof.
+  - [x] Preserve the read-only directory and current API contract; no mutation UI.
+  - [x] Use accessible dialog semantics and keyboard dismissal.
+  - [x] Keep focus inside the open dialog and restore focus to the trigger after close.
+  - [x] Add regression coverage for the keyboard/focus contract without adding an unapproved test dependency.
+- **Validation:** Browser-level verification is merged in PR #47 at `3af07f3749d970fe4ee084a953168c7f1ddd5975`. Exact tested head `03ee8265bbcdbe7bca1f50b101c07530b672fab1`: [auth-web CI #40260229780](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260229780) passed 10/10 browser tests; [auth-service CI #40260229779](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260229779) passed. Post-merge auth-web [#40260404454](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260404454) and auth-service [#40260404468](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260404468) passed on the merge SHA. No server/auth/data-access changes or real account data were used.
 - **Dependencies:** Existing read-only UM-3 UI; no schema or audit dependencies.
 - **Risk:** Low to medium — incorrect focus cleanup could leave keyboard users outside the modal; no server authorization or data-access behavior changes.
 - **Safety:** No Supabase access added to the browser, no schema changes, no production release or account mutations.
@@ -327,8 +327,8 @@
   - [x] Preserve focus, keyboard, response-allowlist and non-admin API-denial assertions; no skips or weakened assertions.
   - [x] Keep all API responses mocked; no real Supabase, account rows, secrets or mutations.
   - [x] Exact-head auth-web and auth-service CI pass on `420b97b79991b376062189e7ae27ae8589556499`.
-- **Validation:** Auth-web and auth-service CI passed on exact head `420b97b79991b376062189e7ae27ae8589556499`. The Supabase Preview check remains skipped because no Supabase Branch is associated; do not merge until the external integration target and merge-time migration behavior are verified safe.
-- **Dependencies:** Existing read-only UM-3 UI and API contract; no schema, audit, migration or mutation dependency. Supabase integration safety remains a repository-level merge gate.
+- **Validation:** PR #45 was closed as superseded; its viewport-bounded dialog fix and browser assertions are included in merged PR #47 (`3af07f3749d970fe4ee084a953168c7f1ddd5975`). The skipped Supabase Preview check is recorded under AUTH-OPS-002 and remains relevant to migration-bearing changes, not this merged UI-only slice.
+- **Dependencies:** Existing read-only UM-3 UI and API contract; no schema, audit, migration or mutation dependency. Production/non-production classification remains a merge gate for migration-bearing changes only.
 - **Risk:** Low-to-medium — test harness and dev-only allowlist plus a page-scoped scroll constraint; runtime authentication and account-management behavior remain unchanged.
 - **Links:** [superseded PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [current PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45), [auth-web CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309), [auth-service CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304).
 
