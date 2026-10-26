@@ -50,7 +50,7 @@
 
 ### AUTH-SEC-002 — Restrict direct browser-role grants on auth persistence tables
 
-- **Priority/status:** P1 / BLOCKED on AUTH-UM-000 migration provenance and an approved non-production validation target.
+- **Priority/status:** P0 / BLOCKED on AUTH-UM-000 migration provenance and an approved non-production validation target.
 - **Evidence:** Read-only Supabase catalog inspection on 2026-10-26; `public.users`, `public.refresh_sessions`, `public.mfa_recovery_codes`, `public.auth_passkey_credentials`, `public.auth_passkey_challenges`, `public.auth_keycloak_identities`; [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 - **Current behavior:** RLS is enabled on all six tables and the catalog query found no policies. The `anon` and `authenticated` roles nevertheless have direct SELECT/INSERT/UPDATE/DELETE table privileges on `users`, `refresh_sessions`, `mfa_recovery_codes`, and the two passkey tables. With no RLS policies, row access is currently default-denied, but the grants exceed the intended server-only boundary. `auth_keycloak_identities` is restricted to server roles. The legacy refresh/recovery RPCs are executable only by `service_role`/owner.
 - **Fresh security-advisor cross-check (2026-10-26T01:05Z):** Supabase's security advisor reports 29 `rls_enabled_no_policy` findings across the connected project. Treat that as a project-wide signal, not 29 Auth tables. The six Auth tables scoped here were individually confirmed to have zero policies. Keep remediation scoped to Auth until authoritative migration provenance and an approved non-production target exist; do not modify unrelated tables.
@@ -65,6 +65,8 @@
 - **Dependencies:** AUTH-UM-000 and an approved non-production Supabase target.
 - **Risk:** High — revoking grants without confirming the runtime call paths could break authentication, while broad grants are fragile if RLS policy state changes.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+
+- **Privilege semantics:** Supabase's [Securing your API](https://supabase.com/docs/guides/api/securing-your-api) distinguishes object grants from row policies; PostgreSQL's [row-security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) notes row security does not apply to operations such as TRUNCATE. Revoke the excess browser-role privileges only through an approved, reviewed migration in a verified non-production environment; do not mass-change the shared project.
 
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
