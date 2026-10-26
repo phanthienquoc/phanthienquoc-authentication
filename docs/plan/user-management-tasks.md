@@ -44,7 +44,7 @@
 - **Validation:** Read-only Supabase project/branch/migration queries; Post-merge check result above; official [Supabase GitHub integration documentation](https://supabase.com/docs/guides/deployment/branching/github-integration) and [Deployment & Branching](https://supabase.com/docs/guides/deployment). No migration or direct SQL write was invoked by the agent.
 - **Dependencies:** Authoritative environment/integration configuration and migration provenance; current project-ref-only tools cannot establish the production target.
 - **Risk:** Critical — an unverified GitHub integration may run migration deployment on master pushes while the local/remote migration ledgers are inconsistent.
-- **Links:** [UM roadmap](../user-management-roadmap.md), [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), [Supabase integration docs](https://supabase.com/docs/guides/deployment/branching/github-integration).
+- **Links:** [UM roadmap](../user-management-roadmap.md), [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), [documentation PR #48](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/48), [Supabase integration docs](https://supabase.com/docs/guides/deployment/branching/github-integration).
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
