@@ -51,7 +51,7 @@ export class AuthService {
     if (!user || !(await this.passwords.verify(input.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    if (user.mfaEnabled) return { mfaRequired: true, userId: user.id };
+    if (user.mfaEnabled) return this.beginMfaLogin(user);
     return this.issueLoginForUser(user, context);
   }
 
@@ -118,6 +118,28 @@ export class AuthService {
     }
     this.clearRefreshCookie(response);
     return { ok: true };
+  }
+
+  async beginMfaLogin(user: AuthUser) {
+    if (!user.mfaEnabled || !user.mfaSecretEncrypted) {
+      throw new UnauthorizedException('MFA is not enabled for this account');
+    }
+    const challengeToken = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await this.repository.createMfaLoginChallenge({
+      userId: user.id,
+      tokenHash: this.passwords.hashToken(challengeToken),
+      expiresAt,
+    });
+    return {
+      mfaRequired: true as const,
+      challengeToken,
+      mfaExpiresInSeconds: 300,
+    };
+  }
+
+  hashMfaChallengeToken(challengeToken: string): string {
+    return this.passwords.hashToken(challengeToken);
   }
 
   async completeMfaLogin(user: AuthUser, context: {
