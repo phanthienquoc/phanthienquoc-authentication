@@ -76,15 +76,15 @@
 
 ### AUTH-OPS-004 — Investigate PostgREST root-path timeout burst
 
-- **Priority/status:** P1 / INVESTIGATING — repeated timeout-manager errors are present in the same production-tagged window as the migration application.
+- **Priority/status:** P1 / MITIGATION IMPLEMENTED IN PR #63; merge blocked by the shared private-production integration gate.
 - **Evidence:** Bounded unified log query for `2026-10-26T08:00:00Z`–`08:49:00Z` returned 36 `postgrest_logs` entries with `Warp server error: Thread killed by timeout manager`, tagged `env=prod`, path `/`; latest at `2026-10-26T08:47:56.588Z`. `AuthController.status()` (`GET /auth/status`) and `HealthController.ready()` (`GET /ready`) both call `AuthRepository.ready()` per request; that method GETs `/rest/v1/` OpenAPI metadata. This is a plausible source for the root-path timeout burst, but log-to-request correlation and actual request frequency are not proven.
-- **Current behavior:** The log burst is real; caller frequency/root cause and impact are unverified. No repeated polling or production probes were performed.
+- **Current behavior:** The log burst is real; source call sites are confirmed but actual traffic frequency and root cause remain unverified. PR #63 caches successful OpenAPI path discovery for five minutes, coalesces concurrent requests, and never caches failures. It does not remove the per-request table probes in readiness.
 - **Desired behavior:** Reproduce safely outside production, correlate request volume/call sites with logs, and reduce unnecessary root OpenAPI requests only if a targeted test demonstrates the cause.
 - **Acceptance criteria:**
   - [x] Record one bounded log aggregate and inspect the repository readiness implementation.
   - [x] Confirm source call sites: `/auth/status` and `/ready` each call readiness per request; actual traffic frequency remains unknown.
   - [ ] Reproduce on an approved non-production target and add a regression test before changing behavior.
-- **Validation:** Read-only log aggregation and GitHub source inspection; no production traffic generation or config change.
+- **Validation:** Auth Service CI passed on PR #63 exact head `10bc52f7769bdc1ae955fbadffb50a5e07bec58b` [run #40295944192](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40295944192), including tests, typecheck, build, and container build. Supabase Preview is skipped. Read-only log/source inspection only; no production traffic generation or config change.
 - **Dependencies:** AUTH-OPS-002 and approved non-production environment.
 - **Risk:** Medium/high — recurring metadata endpoint timeouts may affect startup/readiness; cause not yet confirmed.
 - **Links:** [Supabase deployment docs](https://supabase.com/docs/guides/deployment), [Auth repository](https://github.com/phanthienquoc/phanthienquoc-authentication).
