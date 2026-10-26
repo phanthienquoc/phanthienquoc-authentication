@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 17:55 +07:00
+**Last audited:** 2026-10-26 19:05 +07:00
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -466,3 +466,12 @@
 - **Migration provenance:** Ledger remains 77 entries through `20261026084506`. Remote-only `20261014024759`, `20261014130516`, `20261014131151` lack exact source files in the two authorized repos; local `20261012000000_auth_persistence_rpcs.sql` is absent from the remote ledger; local `20261014000000_keycloak_identity_persistence.sql` does not match remote version prefix `20261020234922`. No historical SQL was reconstructed.
 - **Auth PRs:** PR #68 (this documentation reconciliation) and PR #70 (suspension regression tests) remain open/draft. Check the exact current head's Actions status before any merge. Neither is merged because the Supabase integration target/side effects remain unverified and the current instruction requires exact authorization for each future write operation.
 - **Environment and authorization:** Auth's historical owner-confirmed non-production note conflicts with TCE's private-production wording and live aggregate `env=prod` logs. The actual GitHub-to-Supabase connection/deploy toggle is not exposed by the authorized repo config. No migration, Supabase branch, schema/data write, function deployment, application release or live account mutation occurred.
+
+## Latest scheduled evidence — 2026-10-26 19:05 +07:00
+
+- **UM status:** UM-1/UM-2/UM-3 implementation slices remain merged per the roadmap. UM-4 remains open: source-level suspension tests pass, but a safe end-to-end lifecycle run has not been demonstrated.
+- **Schema/contract evidence:** Rechecked the sole listed Supabase project and branch read-only. The 14 current `public.auth_%` RPCs have fixed search paths and server-role-only EXECUTE. Auth tables remain RLS-enabled with no policies and no browser-role table grants. `SignupDto` has no role field and signup explicitly assigns `USER`; login, refresh, MFA, passkey, and admin lifecycle code were reviewed against status and least-privilege contracts.
+- **Migration drift:** Remote ledger has 77 versions; the three historical remote-only versions and Keycloak version mismatch remain unresolved. Do not synthesize missing SQL. The current task's per-operation authorization rule supersedes historical blanket wording for future applies.
+- **Validation:** PR #68 exact head `dcf1a4d822758943e093cf6cd95b865cdf81bb1a` passed [Auth Service CI #40313090236](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40313090236). PR #70 exact head `d769ceb23b14e1b160638320f56d088cdcd1f28e` passed [Auth Service CI #40305791232](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40305791232).
+- **Open PRs:** #68 (roadmap/queue evidence) and #70 (suspension regression tests) are open/draft and mergeable. Do not merge solely on green CI: the connected GitHub/Supabase repository/deploy target remains unverified, and a connected integration can run migration steps. No exact future migration operation is authorized by this run.
+- **Risk/dependencies:** Medium — source contract is covered, but live integration/environment provenance is unresolved. No Supabase branch was created; no account rows or sensitive auth material were read; no migration/schema/data write, function deployment, or release occurred.
