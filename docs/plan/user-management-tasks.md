@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 19:13 +07:00
+**Last audited:** 2026-10-26 20:33 +07:00
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -290,21 +290,24 @@
 
 ### AUTH-UM-004 — Non-production security/integration gate (UM-4)
 
-- **Priority/status:** P1 / BLOCKED — UM-2B code is merged and exact-head service/web CI passed, but end-to-end lifecycle integration has not been performed. Owner/admin confirms `gtqovpusfyyvxpeezxlo` is non-production and authorizes scoped Supabase actions for these two repos; controlled synthetic-fixture integration is in scope.
-- **Evidence:** `.github/workflows/ci.yml`, `.github/workflows/web-ci.yml`, `README.md`, `docs/production-runtime-secrets.md`, `supabase/migrations/`, live catalog and ledger evidence in the roadmap.
-- **Current behavior:** Source-level backend/web CI and migration-contract tests do not prove that the deployed runtime URL maps to the inspected project or verify cookie/gateway forwarding and lifecycle behavior against a safe database. Auth roadmap records owner-confirmed non-production, TCE queue records conflicting private-production wording, and live logs are tagged `env=prod` on the only listed `main` branch. Supabase Preview is skipped.
-- **Desired behavior:** Run synthetic-fixture lifecycle integration only against an explicitly classified and approved non-production target with exact authorization for required writes. Keep production release and live-trading actions separate.
+- **Priority/status:** P1 / PARTIAL — synthetic database-RPC integration passed against the owner-confirmed non-production project on 2026-10-26 20:33 +07:00. Full application HTTP integration remains open.
+- **Evidence:** `.github/workflows/ci.yml`, `.github/workflows/web-ci.yml`, `README.md`, `docs/production-runtime-secrets.md`, `supabase/migrations/`, live catalog/ledger, and the controlled synthetic-fixture run recorded in [the roadmap](../user-management-roadmap.md).
+- **Current behavior:** Live database contracts are verified, and a single atomic PostgreSQL DO statement exercised lifecycle RPCs with generated synthetic users/sessions only. The statement cleaned its audit/session/user fixtures; a follow-up read-only count returned zero synthetic users, sessions, and audit events. Runtime URL-to-project binding and end-to-end HTTP/cookie/gateway flows remain unverified. Branch status `MIGRATIONS_FAILED` and historical migration provenance remain separate diagnostics.
+- **Desired behavior:** Complete login/refresh/MFA/recovery/passkey and admin lifecycle acceptance against the approved non-production runtime, with audit redaction and gateway controls verified, without using real account rows or releasing production.
 - **Acceptance criteria:**
-  - [x] Backend/web source tests and typecheck/build passed for merged lifecycle code.
-  - [x] Verify live RPC signatures, function bodies, ACLs and Auth-table grants read-only.
-  - [ ] Run scoped integration against the owner-confirmed non-production project with synthetic fixtures only; keep `MIGRATIONS_FAILED` and historical migration provenance as independent diagnostic items.
-  - [ ] Obtain exact authorization for isolated synthetic lifecycle writes, then test login, refresh, MFA, passkey, suspension and session revocation.
-  - [ ] Verify audit redaction, cookies/CORS/CSRF/rate limits and gateway behavior without exposing secrets.
-- **Source-level coverage:** [AUTH-UM-004A / PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70) adds suspended-refresh and migration-contract regression tests; this is not live integration.
-- **Validation:** Exact-head GitHub Actions; approved non-production target; synthetic fixtures only after explicit write authorization; response/audit redaction review.
-- **Dependencies:** AUTH-UM-000 through AUTH-UM-003 and AUTH-OPS-001.
-- **Risk:** Critical if source-only CI is mistaken for end-to-end rollout readiness.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #64](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/64).
+  - [x] Backend/web source tests, typecheck and build passed for merged UM-1 through UM-3 code.
+  - [x] Verify live RPC signatures, bodies, fixed search paths, ACLs and Auth-table grants read-only.
+  - [x] Run synthetic database-RPC integration for active session creation, suspension and refresh-session revocation, refusal to create a refresh session while suspended, reactivation, explicit session revocation, role promotion, non-admin denial, self-role/self-suspension denial, and audit-failure rollback.
+  - [x] Verify synthetic fixture cleanup leaves zero matching users, sessions, and audit events; no real account rows were queried.
+  - [ ] Run application-level login, refresh, MFA/recovery, passkey and admin HTTP flows against the explicitly approved non-production runtime.
+  - [ ] Verify cookies, CORS/CSRF, rate limits, gateway forwarding, and response/audit redaction without exposing secrets.
+  - [ ] Reconcile historical migration provenance before any new migration/apply operation; exact authorization is still required for each future migration.
+- **Source-level coverage:** [AUTH-UM-004A / PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70) adds suspended-refresh and migration-contract regression tests; it is complementary to, not a replacement for, synthetic database-RPC integration.
+- **Validation:** Connected Supabase execute_sql completed the atomic synthetic-fixture block without assertion errors. A subsequent read-only query returned `synthetic_users_remaining=0`, `synthetic_sessions_remaining=0`, `synthetic_audit_events_remaining=0`. No migration, schema change, branch operation, production release, or persistent fixture data was created.
+- **Dependencies:** Approved non-production project `gtqovpusfyyvxpeezxlo`; current service-role RPC contracts; an approved application runtime URL/config mapping for HTTP-level tests.
+- **Risk:** Medium — lifecycle writes were exercised only against generated synthetic identities and cleaned immediately. Do not expand to real account rows or migration operations without the required exact authorization.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70).
+
 
 ### AUTH-UM-004A — Regression coverage for suspension across auth entrypoints
 
