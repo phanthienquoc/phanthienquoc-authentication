@@ -1,5 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { AdminAuditService } from '../src/users/admin-audit.service';
+import { AdminAuditService, type AdminAuditEventInput } from '../src/users/admin-audit.service';
 import { SupabaseClientService } from '../src/db/supabase.client';
 
 describe('AdminAuditService', () => {
@@ -22,7 +21,7 @@ describe('AdminAuditService', () => {
       mfaSecret: 'must-not-be-persisted',
       recoveryCode: 'must-not-be-persisted',
       passkeyPublicKey: 'must-not-be-persisted',
-    } as any;
+    } as unknown as AdminAuditEventInput;
 
     await expect(service.record(event)).resolves.toEqual({ id: 'audit-event-id' });
     expect(rpc).toHaveBeenCalledTimes(1);
