@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-- Status: Architecture baseline established; implementation is in progress. The protected admin guard/read-only list-detail API (UM-1A) and directory UI (UM-3) are merged. On 2026-10-26, the four source-required atomic auth RPCs were applied to the connected Supabase project as migration `20261026030920_auth_persistence_rpc_contract_reconcile` and their signatures/service-role grants were reverified. This resolves the immediate live RPC absence, with the source artifact and TypeScript response-contract fix tracked in the active PR. Migration provenance for three other remote-only versions remains unresolved. Audit persistence (UM-1B), lifecycle mutations (UM-2), status/suspension enforcement and UM-4 integration validation are not complete. See [the canonical task queue](plan/user-management-tasks.md).
+- Status: Implementation is in progress. The protected read-only admin API (UM-1A) and directory UI (UM-3) are merged. Required auth RPCs were applied and tracked at `20261026030920`; browser-role access to legacy Auth tables was revoked at `20261026032152`. UM-1B audit table/RPC were applied and verified at `20261026035340` and `20261026035431`; matching source, tests and queue evidence are in PR #54 with exact-head CI pending. UM-2 lifecycle mutations, status/suspension enforcement and UM-4 integration validation remain incomplete. Four older remote-only migration versions remain without source artifacts. See [the canonical task queue](plan/user-management-tasks.md).
 - Owner: central NestJS authentication service and its Next.js `web/` app.
 - No changes to TCE Dashboard or Media consumers in this phase.
 - Change record (2026-10-26): following the owner's direction to proceed with the Supabase migration, the narrowly scoped four-RPC contract migration was applied to connected project ref `gtqovpusfyyvxpeezxlo`. This changed function definitions and migration history; it did not read or modify user/account rows, add account-status/audit schema, deploy an application image, or perform an application release. The connected project's environment classification is still not independently inferable from checked-in repository config, so do not claim the DB is a verified non-production target or claim application rollout.
@@ -15,7 +15,7 @@
 - An optional Keycloak OIDC path exists. `auth_keycloak_identities` stores minimal metadata for verified Keycloak identities; Keycloak remains the source of truth for credentials, sessions, MFA and roles in that mode.
 - README and `docs/web-ui-integration.md` require the backend to own auth logic and keep Keycloak mode opt-in/non-production until its integration gates pass.
 
-The checked-in baseline in [TCE Dashboard infra/db/001_auth.sql](https://github.com/phanthienquoc/TCE-dashboard/blob/master/infra/db/001_auth.sql) is not proof of the live schema. A **read-only catalog inspection of the connected shared Supabase project on 2026-10-26** confirmed the following metadata (no row data was read and no writes or migrations were performed):
+The checked-in baseline in [TCE Dashboard infra/db/001_auth.sql](https://github.com/phanthienquoc/TCE-dashboard/blob/master/infra/db/001_auth.sql) is not proof of the live schema. A **historical pre-migration read-only catalog snapshot of the connected shared Supabase project on 2026-10-26** confirmed the following metadata. Subsequent scoped migrations changed RPC definitions/grants and added the audit table; no user/account rows were read or changed:
 
 - `public.users` has `id`, `email`, `password_hash`, `role`, `mfa_enabled`, `mfa_secret_encrypted`, `created_at`, and `updated_at`. Live constraints include a unique `email` and a `USER | ADMIN` role check. There is **no account-status/suspension column**.
 - `public.refresh_sessions` has `id`, `user_id`, `token_hash`, `family_id`, `replaced_by`, `expires_at`, `revoked_at`, `created_at`, `last_used_at`, `ip`, and `user_agent`; `token_hash` is unique and user/family indexes exist.
@@ -72,6 +72,14 @@ The source artifact is tracked in [the Auth migration directory](../supabase/mig
 The consolidated suite in `test/auth-flow-security.spec.ts` carries forward the previously green test-only slice from PR #49 onto current master in [PR #52](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52). It verifies normalized login, no session issuance while MFA is pending, refresh-token-only HttpOnly cookie delivery, refresh reuse/error cookie clearing, logout revocation, and fail-closed passkey behavior. It uses mocks only and is not a substitute for non-production database integration testing.
 
 UM security follow-ups remain explicit: `AUTH-SEC-001` must bind MFA completion to a server-issued first-factor challenge; the missing account status/audit schema must be designed and validated before UM-2 mutations; no claim is made that suspension enforcement is complete across login/refresh/MFA/passkey.
+
+## UM-1B audit persistence — applied 2026-10-26
+
+- Migration `20261026035340_auth_admin_audit_events` creates `public.auth_admin_audit_events`, actor/target chronology indexes, and `public.auth_record_admin_audit_event(...)`.
+- Migration `20261026035431_auth_admin_audit_rpc_only_access` revokes direct table privileges from `PUBLIC`, `anon`, `authenticated`, and `service_role`; application writes use only the validated RPC. Catalog queries confirm the function is `SECURITY DEFINER` with fixed search_path and EXECUTE for `service_role` plus owner `postgres` only.
+- The RPC accepts allowlisted action/outcome, role/status transitions, enum reason code and request ID; successful actions require an existing legacy ADMIN actor. `actor_provider` is fixed to `LEGACY`. No generic JSON payload, token/hash, password, MFA/recovery, passkey or Keycloak identity material is stored.
+- Matching SQL, typed `AdminAuditService`, module registration and redaction/error tests are tracked in [PR #54](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/54). No user/account rows were read or changed, and no mutation endpoint was added.
+- `public.users` still lacks account status/suspension columns. UM-2 remains gated until status schema, suspension enforcement across login/refresh/MFA/passkey, authorization/concurrency, and atomic audit integration are implemented and tested.
 
 ## Product decision
 
