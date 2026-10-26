@@ -89,7 +89,7 @@ Configure server-only variables in the runtime secret/config contract:
 
 **Keycloak configuration requirement:** configure a client scope / protocol mapper that adds the API audience (for example `nest-api`) to access-token `aud`. Do not weaken or remove audience validation to make a token pass. Keep client secrets out of `NEXT_PUBLIC_*` variables.
 
-This integration is additive and non-breaking: the existing NestJS custom login/session endpoints remain unchanged and continue to be the legacy path until a separately tested migration. Only `/api/oidc/me` currently uses Keycloak validation. Do not route production clients to this endpoint until the Keycloak issuer, audience mapper, roles and end-to-end tests are configured.
+The TCE session exchange is opt-in and additive: it requires `KEYCLOAK_TCE_CLIENT_ID=tce-dashboard`, a token whose `azp` exactly matches that client, and `email_verified=true`. It links only to an existing ACTIVE account with the exact verified email; it never auto-provisions users. Accounts with legacy app-managed MFA are rejected rather than having MFA silently bypassed. On success, the service issues the existing app JWT and HttpOnly refresh cookie so TCE can continue using its current API contract. The refresh cookie path is `/auth`, matching the public `/auth/*` routes. Existing custom login/session endpoints remain available. Do not enable TCE SSO mode until the shared JWT signing secret is confirmed identical between central Auth and the TCE API, the runtime client/issuer/audience configuration is verified, and non-production end-to-end tests pass.
 
 
 ## Keycloak identity metadata in Supabase
