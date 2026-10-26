@@ -77,6 +77,8 @@ create index auth_admin_audit_events_actor_created_idx
 create index auth_admin_audit_events_target_created_idx
   on public.auth_admin_audit_events (target_user_id, created_at desc);
 
+alter table public.auth_admin_audit_events enable row level security;
+
 revoke all privileges on table public.auth_admin_audit_events
   from public, anon, authenticated;
 
