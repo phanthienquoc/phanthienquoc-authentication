@@ -86,6 +86,24 @@
 
 - **Privilege semantics:** Supabase's [Securing your API](https://supabase.com/docs/guides/api/securing-your-api) distinguishes object grants from row policies; PostgreSQL's [row-security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) notes row security does not apply to operations such as TRUNCATE. The scoped browser-role revocation has now been applied and verified. Keep future privilege/policy changes scoped to the specific Auth tables and validate them from catalog metadata; do not mass-change unrelated shared-project tables.
 
+### AUTH-SEC-003 — Login, refresh and passkey failure-contract regression tests
+
+- **Priority/status:** P1 / IN PR — [replacement PR](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52) carries the tested regression suite onto current `master` after the RPC and grant migrations.
+- **Evidence:** `test/auth-flow-security.spec.ts`; original exact-head test run [auth-service CI #40262203234](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40262203234) passed before being refreshed onto current master.
+- **Current behavior:** Existing Auth flows already normalize login email; withhold session/token/cookie before MFA completion; rotate refresh tokens through a persistence contract; revoke the presented refresh token on logout; clear cookies on refresh errors/reuse; and fail closed for unknown passkeys or missing challenges. Coverage was missing as a dedicated consolidated suite on current master.
+- **Desired behavior:** Keep these failure/credential-delivery contracts regression-tested without making real Supabase calls, reading account rows, or weakening authentication assertions.
+- **Acceptance criteria:**
+  - [x] Cover normalized login and keep refresh token out of JSON.
+  - [x] Assert invalid credentials and MFA-pending login do not create a refresh session, issue a JWT or set a cookie.
+  - [x] Assert refresh rotation returns access token only, and token reuse/persistence errors clear the HttpOnly refresh cookie.
+  - [x] Assert logout revokes the hashed token and clears the cookie.
+  - [x] Assert unknown passkey and missing challenge fail before credential update or session issuance.
+  - [ ] Run the suite with all service CI steps on the exact current PR head.
+- **Validation:** The prior branch's exact-head service CI passed `npm test`, typecheck, build and container build at run #40262203234. Replacement branch CI must pass on its own exact head before merge.
+- **Dependencies:** Existing RPC contract reconciliation is merged via PR #50. This test task does not resolve the separate server-issued MFA first-factor challenge tracked by AUTH-SEC-001, nor does it claim live DB integration coverage.
+- **Risk:** Low — test-only change, in-memory mocks, no runtime behavior or database access.
+- **Links:** [roadmap](../user-management-roadmap.md), [PR #49 (superseded source)](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/49), [current PR #52](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52).
+
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
 - **Priority/status:** P1 / DONE for the read-only API foundation — merged on 2026-10-25 at squash SHA `14795baaef7a4b40fbf2d4236f572658cee56c95`.
