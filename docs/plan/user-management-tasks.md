@@ -299,10 +299,27 @@
   - [ ] Resolve environment classification and runtime URL-to-ref/GitHub integration mapping.
   - [ ] Obtain exact authorization for isolated synthetic lifecycle writes, then test login, refresh, MFA, passkey, suspension and session revocation.
   - [ ] Verify audit redaction, cookies/CORS/CSRF/rate limits and gateway behavior without exposing secrets.
+- **Source-level coverage:** [AUTH-UM-004A / PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70) adds suspended-refresh and migration-contract regression tests; this is not live integration.
 - **Validation:** Exact-head GitHub Actions; approved non-production target; synthetic fixtures only after explicit write authorization; response/audit redaction review.
 - **Dependencies:** AUTH-UM-000 through AUTH-UM-003 and AUTH-OPS-001.
 - **Risk:** Critical if source-only CI is mistaken for end-to-end rollout readiness.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #64](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/64).
+
+### AUTH-UM-004A — Regression coverage for suspension across auth entrypoints
+
+- **Priority/status:** P1 / TEST IMPLEMENTED; exact-head CI pending — [draft PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70). This source-level slice is independent of live Supabase writes; UM-4 end-to-end integration remains BLOCKED.
+- **Evidence:** `test/auth-flow-security.spec.ts` already rejects suspended accounts before login MFA challenge/session creation; the live/source migration `20261026080831_auth_user_status_enforcement.sql` enforces ACTIVE status across refresh, MFA challenge/recovery, and passkey challenge RPCs. Before this slice there was no unit regression for a suspended refresh result and no dedicated migration contract test covering all those RPCs/grants.
+- **Current behavior:** Runtime/source checks deny suspended users, but test coverage did not explicitly assert that a suspended refresh result clears the refresh cookie and never issues an access token; the migration's active-only RPC contract was only indirectly covered.
+- **Desired behavior:** Lock in ACTIVE-only behavior across refresh, MFA, recovery and passkey paths, fixed search paths, and service-role-only EXECUTE grants without contacting the live database.
+- **Acceptance criteria:**
+  - [x] Add a refresh regression asserting suspended result rejection, cookie clearing and no access-token issuance.
+  - [x] Add a source-level migration contract test for ACTIVE-status checks, fixed search paths and browser-role EXECUTE denial.
+  - [ ] Pass exact-head Auth Service CI on PR #70.
+  - [ ] Keep live synthetic lifecycle integration blocked until the runtime/project target is authoritative and exact write authorization exists.
+- **Validation:** PR #70 contains only tests; no migration, schema, application runtime code, credential or account data is changed. Exact-head CI is pending at this checkpoint.
+- **Dependencies:** AUTH-UM-000 and AUTH-UM-004 for end-to-end verification; the source-level test slice does not depend on live Supabase access.
+- **Risk:** Low for code behavior (test-only); do not mistake source-level contract tests for live integration evidence.
+- **Links:** [PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70), [status-enforcement migration](../../supabase/migrations/20261026080831_auth_user_status_enforcement.sql), [auth-flow security tests](../../test/auth-flow-security.spec.ts).
 
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
