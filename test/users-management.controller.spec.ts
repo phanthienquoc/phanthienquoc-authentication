@@ -5,6 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import { GUARDS_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
 import { validate } from 'class-validator';
 import { AdminGuard, type AdminRequest } from '../src/users/admin.guard';
+import { RecentMfaGuard } from '../src/users/recent-mfa.guard';
 import { UpdateUserRoleDto } from '../src/users/dto/update-user-role.dto';
 import { UsersManagementController } from '../src/users/users-management.controller';
 import { UsersManagementService } from '../src/users/users-management.service';
@@ -86,4 +87,15 @@ describe('UsersManagementController route security contract', () => {
     )).toThrow(ForbiddenException);
     expect(service.updateRole).not.toHaveBeenCalled();
   });
+  it('requires recent MFA on each privileged lifecycle route but not on read-only directory routes', () => {
+    for (const method of ['updateRole', 'updateStatus', 'revokeSessions']) {
+      const handler = Object.getOwnPropertyDescriptor(prototype, method)?.value;
+      expect(Reflect.getMetadata(GUARDS_METADATA, handler) as Function[] | undefined).toContain(RecentMfaGuard);
+    }
+    for (const method of ['list', 'getById']) {
+      const handler = Object.getOwnPropertyDescriptor(prototype, method)?.value;
+      expect(Reflect.getMetadata(GUARDS_METADATA, handler) as Function[] | undefined).not.toContain(RecentMfaGuard);
+    }
+  });
+
 });
