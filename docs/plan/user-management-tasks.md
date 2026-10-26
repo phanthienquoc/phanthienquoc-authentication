@@ -181,12 +181,31 @@
 - **Risk:** Critical if source-only CI is mistaken for rollout readiness.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
+### AUTH-SEC-003 — Isolated login, refresh and passkey failure contracts
+
+- **Priority/status:** P1 / IN PR — test-only prework on branch `test/auth-login-refresh-passkey-contracts`; exact-head CI is pending.
+- **Evidence:** `test/auth-flow-security.spec.ts`, `src/auth/auth.service.ts`, `src/auth/auth.controller.ts`, `src/auth/passkey.service.ts`.
+- **Current behavior:** The repository test tree had no isolated unit coverage for login/refresh cookie semantics or passkey authentication failure gates. Live RPC/schema incompatibility and the server-issued MFA challenge gap remain separate blockers.
+- **Desired behavior:** Lock down safe existing contracts with mock-only tests while keeping schema-dependent lifecycle mutations and MFA challenge implementation blocked.
+- **Acceptance criteria:**
+  - [x] Assert normalized login email, no session issuance for invalid credentials, and no session issuance before MFA completion.
+  - [x] Assert refresh rotation returns only the access token in JSON and sends the replacement refresh token only via an HttpOnly cookie.
+  - [x] Assert refresh reuse/persistence failures clear the cookie and expose sanitized errors.
+  - [x] Assert logout revokes the presented token hash and clears the cookie.
+  - [x] Assert unknown passkeys and missing challenges fail before credential update/session issuance.
+  - [ ] Auth-service tests/typecheck/build/container CI passes on the exact PR head.
+  - [ ] Keep the Supabase merge-side-effect gate; no schema/migration changes are included.
+- **Validation:** GitHub Actions on the exact PR head; tests use in-memory mocks and do not connect to Supabase or read account rows.
+- **Dependencies:** Existing AuthService/PasskeyService contracts; independent of schema mutation. Does not unblock AUTH-SEC-001's server-issued MFA challenge or AUTH-UM-000 RPC reconciliation.
+- **Risk:** Low-to-medium — test-only; assertions intentionally document current safe boundaries without claiming the known MFA challenge gap is solved.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1).
+
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
 - **Priority/status:** P1 / BLOCKED — source audit is complete, but implementation depends on the AUTH-UM-000 RPC/schema contract and an approved non-production target for durable challenge storage; tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
 - **Evidence:** `src/auth/auth.module.ts`, `src/auth/auth.controller.ts` (`POST mfa/login`, `POST mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `src/auth/passkey.service.ts`, `web/src/features/auth/auth-store.ts`.
 - **Current behavior:** The registered `AuthModule` exposes only `AuthController`. Its active MFA login/recovery routes accept `userId + code`; password and passkey login return `mfaRequired + userId`, and the pending state is held in the browser store rather than a server-issued, expiring challenge bound to successful first-factor verification. `src/auth/mfa.controller.ts` contains duplicate MFA routes but is not registered in `AuthModule`; do not register it as a workaround. No explicit NestJS rate-limit guard is visible in this repository; gateway rate limiting has not been verified.
-- **Test inventory:** `test/user-management-security.spec.ts`, `test/admin.guard.spec.ts` and `test/users-management.controller.spec.ts` cover admin response/guard/route contracts. No unit spec for `AuthService.login/refresh`, MFA completion or `PasskeyService.authenticationVerify` was found under `test/`; this is a repository test-tree finding, not a claim that no external/e2e coverage exists.
+- **Test inventory:** `test/auth-flow-security.spec.ts` now covers `AuthService.login/refresh/logout`, HttpOnly refresh-cookie and response-token contracts, withholding session issuance while MFA is pending, and passkey unknown-credential/missing-challenge failures. It does not implement or prove a server-issued MFA challenge, and no external/e2e coverage is inferred.
 - **Desired behavior:** Short-lived, one-time server challenge bound to the successful first factor, user and session; bounded attempts, safe invalidation and consistent behavior across password/passkey MFA and recovery.
 - **Acceptance criteria:**
   - [ ] MFA cannot complete for a user without a prior server-validated first factor.
