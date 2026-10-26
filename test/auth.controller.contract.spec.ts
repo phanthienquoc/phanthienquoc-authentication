@@ -51,7 +51,7 @@ describe('AuthService refresh cookie contract', () => {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
-      path: '/api/auth',
+      path: '/auth',
       maxAge: 2592000 * 1000,
     });
   });
