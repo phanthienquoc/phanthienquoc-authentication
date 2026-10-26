@@ -12,6 +12,26 @@ export class KeycloakController {
     private readonly auth: AuthService,
   ) {}
 
+  @Post('session')
+  @HttpCode(HttpStatus.OK)
+  async createSession(
+    @Req() request: KeycloakRequest,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const user = request.keycloakUser!;
+    const allowedClientId = process.env.KEYCLOAK_TCE_CLIENT_ID?.trim();
+    if (!allowedClientId || user.claims.azp !== allowedClientId) {
+      throw new UnauthorizedException('Keycloak client is not allowed to create a TCE session');
+    }
+    if (user.emailVerified !== true || !user.email) {
+      throw new UnauthorizedException('A verified email is required for account linking');
+    }
+    await this.identities.syncAuthenticatedIdentity(user);
+    const session = await this.auth.loginWithKeycloak(user.email, { userAgent, response });
+    return { ...session, authMethod: 'keycloak' as const };
+  }
+
   @Get('me')
   async me(@Req() request: KeycloakRequest) {
     const user = request.keycloakUser!;
