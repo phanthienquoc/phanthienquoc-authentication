@@ -238,6 +238,23 @@
 - **Risk:** Low — UI state transition only. No auth/data-access contract changes.
 - **Safety:** No direct browser-to-Supabase access, mutation endpoints, schema changes, production release, or live account mutation.
 
+### AUTH-UM-003D — Align Next.js dev origin for browser verification
+
+- **Priority/status:** P2 / IN PROGRESS — separate diagnostic slice following blocked AUTH-UM-003C; no browser-level success is claimed yet.
+- **Evidence:** PR #43 exact head `632be6c667e419bb6d3443ea642dc777c9171fd8`; web CI [run #40229190921](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921) failed in `npm test`, while service CI [run #40229190867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190867) passed. The web job log records `GET /admin/users?browserCase=390x844 200`, then Next.js blocked the cross-origin `/_next/hmr` request from `127.0.0.1` and explicitly recommended `allowedDevOrigins: ['127.0.0.1']`. The browser test timed out waiting for the mocked directory row.
+- **Current behavior:** `web/next.config.ts` configures standalone output only. The browser test starts Next.js in dev mode and navigates to `http://127.0.0.1:<port>`; dev-resource origin validation blocks HMR, and the row assertion times out.
+- **Desired behavior:** Explicitly allow only the loopback origin used by the local dev test; keep production behavior and browser mocks unchanged. On timeout, report only intercepted API method/path pairs, never query strings or credentials.
+- **Acceptance criteria:**
+  - [ ] Add `127.0.0.1` to Next.js `allowedDevOrigins` for development resources only.
+  - [ ] Keep all auth/admin requests mocked and preserve removal of Supabase/database credentials from the child process environment.
+  - [ ] Keep keyboard, allowlisted-rendering, non-admin API-denial and viewport assertions enabled.
+  - [ ] Exact-head web CI passes; confirm the resulting PR #43 head reruns successfully before marking browser verification complete.
+  - [ ] Keep PR #43 unmerged until its checks pass and the separate Supabase GitHub integration merge target is verified safe.
+- **Validation:** GitHub Actions is the test runner; no local execution or real-account test is claimed. No database/schema/migration, production deployment, or account mutation.
+- **Dependencies:** AUTH-UM-003C browser contract harness; no database/audit dependency.
+- **Risk:** Low — Next.js development-origin allowlist plus failure diagnostics only; no production auth or API contract changes.
+- **Links:** [PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [web CI failure](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921).
+
 ## Release evidence and guardrails
 
 - PR #18's merge triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed image publication and a promotion request. This is not independent proof of production rollout/health; no platform-infra inspection or rollback was performed.
