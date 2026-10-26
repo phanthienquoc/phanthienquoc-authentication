@@ -16,15 +16,17 @@ test("admin directory delegates requests to the NestJS API and gates the UI by r
   assert.doesNotMatch(api, /@supabase\/supabase-js|SUPABASE_SERVICE_ROLE_KEY|createClient\s*\(/);
 });
 
-test("admin user response type stays allowlisted and read-only", () => {
+test("admin user response type stays allowlisted and mutation API is explicit", () => {
   const fields = api.match(/export type ManagedUser = \{([\s\S]*?)\};/);
   assert.ok(fields, "ManagedUser response type should be defined");
   assert.deepEqual(
     [...fields[1].matchAll(/^\s*(\w+)\s*:/gm)].map((match) => match[1]),
-    ["id", "email", "role", "mfaEnabled"],
+    ["id", "email", "role", "status", "mfaEnabled"],
   );
-  assert.match(page, /Legacy NestJS accounts · Read-only directory/);
-  assert.doesNotMatch(page + api, /adminUpdateRole|adminSuspendUser|adminRevokeSessions|deleteUser/);
+  assert.match(api, /adminUpdateUserRole:/);
+  assert.match(api, /adminUpdateUserStatus:/);
+  assert.match(api, /adminRevokeUserSessions:/);
+  assert.doesNotMatch(page + api, /deleteUser|adminDeleteUser/);
 });
 
 test("directory retains loading, empty, error and keyboard-labelled detail states", () => {
@@ -36,7 +38,7 @@ test("directory retains loading, empty, error and keyboard-labelled detail state
 });
 
 test("directory derives loading and error state from the current request key", () => {
-  assert.ok(page.includes("const requestKey = JSON.stringify([accessToken, user?.role, appliedQuery.trim(), role, page]);"));
+  assert.ok(page.includes("const requestKey = JSON.stringify([accessToken, user?.role, appliedQuery.trim(), role, page, refreshNonce]);"));
   assert.ok(page.includes("requestState?.key !== requestKey"));
   assert.ok(page.includes('requestState.status === "error"'));
   assert.ok(page.includes('setRequestState({ key: requestKey, status: "success" })'));
