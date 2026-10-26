@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-27 00:32 +07:00 (read-only schema/contract and CI recheck)
+**Last audited:** 2026-10-27 03:27 +07:00 (read-only Supabase schema/RPC/advisor/log recheck; UM-4 GET-route HTTP tests added)
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -542,3 +542,32 @@
 - **Dependencies:** Existing UM-2 suspension enforcement and AUTH-UM-004A; does not depend on live Supabase integration.
 - **Risk:** Low — test-only regression coverage; no runtime behavior change.
 - **Links:** [PR #75](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/75), [AuthService Keycloak session exchange](../test/auth-keycloak-session.spec.ts).
+
+
+### AUTH-UM-004C — Guarded read-only directory/detail HTTP contract
+
+- **Priority/status:** P1 / IMPLEMENTED IN PR #75; exact latest-head CI recheck required.
+- **Evidence:** `test/users-management.http.spec.ts`, `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, live read-only catalog snapshot, and [PR #75](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/75).
+- **Current behavior:** The controller applies `AdminGuard` to list/detail and lifecycle routes. The service selects only `id,email,role,status,mfa_enabled` and projects a fixed public-user allowlist. Before this slice, the HTTP-boundary suite exercised the three lifecycle routes but not GET directory/detail through the actual Nest HTTP pipeline.
+- **Desired behavior:** Read-only user-directory and user-detail routes must traverse the real Nest HTTP pipeline, reject unauthenticated access, preserve pagination/shape, avoid mutation RPCs, and never expose password hashes, MFA secrets, session token hashes, recovery material or passkey material.
+- **Acceptance criteria:**
+  - [x] Add HTTP integration coverage for the paginated `GET /api/admin/users` route with an authenticated synthetic admin.
+  - [x] Add HTTP integration coverage for `GET /api/admin/users/:id` with a valid synthetic UUID.
+  - [x] Seed mock rows with secret sentinel fields and assert the response contains only the public allowlist.
+  - [x] Assert the read-only routes do not invoke any RPC.
+  - [ ] Recheck Auth Service CI on the final PR head after test and task-document updates.
+- **Validation:** Source-level HTTP tests use NestJS with a mocked Supabase client and synthetic rows; no live account rows, tokens or secrets are read. The previously validated PR head passed Auth Service CI run [#40378869040](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40378869040); the added GET-route tests require a fresh exact-head CI run.
+- **Dependencies:** UM-1 protected admin principal/guard, UM-3 directory/detail API, and existing response projection.
+- **Risk:** Low — test-only change; no runtime, schema, grant, migration, release or account-data mutation.
+- **Links:** [PR #75](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/75), [controller](../../src/users/users-management.controller.ts), [service](../../src/users/users-management.service.ts).
+
+
+## Read-only contract recheck — 2026-10-27 03:27 +07:00
+
+- **Project discovery:** Current `list_projects` returned one project, ref `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, region `ap-southeast-1`, PostgreSQL `17.6.1.084`, API `ACTIVE_HEALTHY`. `get_project` corroborated the same ref. `list_branches` returned only non-persistent default `main` / Git `master`, branch ID `5132b831-8223-4dc4-8f39-707415c96f1b`, status `MIGRATIONS_FAILED`. The repository's Auth `.env.example` is a placeholder and TCE `apps/service/.env.auth.example` leaves `SUPABASE_URL` blank; no repository/CI config identifies the actual Supabase GitHub integration binding.
+- **Live schema:** `list_tables(verbose=true)` returned 53 public tables. Read-only catalog SQL confirms `public.users` has UUID primary key, unique email, `password_hash`, role default `USER` constrained to `USER | ADMIN`, `mfa_enabled` default false, nullable encrypted MFA secret, timestamps, and status default `ACTIVE` constrained to `ACTIVE | SUSPENDED`. Eight inspected Auth tables have RLS enabled, no policies, and no direct `anon`/`authenticated` SELECT grant. No user rows, password hashes, session tokens, recovery codes or passkey values were selected.
+- **RPC signature/ACL parity:** The live catalog returns 14 `public.auth_%` RPCs. All 14 are `SECURITY DEFINER`, owned by `postgres`, with fixed `search_path=pg_catalog, public, pg_temp`; EXECUTE is false for `anon` and `authenticated`, true for `service_role`. The three lifecycle RPC signatures match `supabase/migrations/20261026084506_auth_admin_user_lifecycle_rpcs.sql` and the application call arguments. `auth_record_admin_audit_event` has the ten expected input arguments and is called with allowlisted audit metadata by `src/users/admin-audit.service.ts`. No RPC was invoked.
+- **Migration provenance:** Ledger remains 78 versions through `20261026122224 revoke_public_cashout_event_access`. Remote-only `20261014024759`, `20261014130516`, `20261014131151`, local-only `20261012000000_auth_persistence_rpcs.sql`, and the Keycloak version mismatch remain under AUTH-UM-000. No historical SQL was reconstructed.
+- **Advisors/logs:** Security advisors report 35 project-wide RLS-enabled/no-policy findings, one SECURITY DEFINER view, eight mutable search paths, 42 GraphQL-exposure findings for each browser role, and leaked-password protection disabled. Performance advisors report 15 unindexed foreign keys, one missing primary key, and 134 unused indexes. The read-only log aggregation showed activity across edge, PostgREST, Postgres and workflow-run sources; a phrase-count over `log_attributes` did not find the known migration-mismatch/timeout strings, which is not proof those events are absent from other log fields. No unrelated object was changed.
+- **UM-4 source slice:** Added GET directory/detail HTTP tests on the existing PR branch in commit `558b9a6d6181b0e1c4d7f5e58269f84fd59d7518`. These use a real NestJS HTTP pipeline with synthetic rows and a mocked Supabase client; they are not live DB/MFA/passkey integration. Exact-head CI must be rechecked after this commit and this task-document update.
+- **Merge gate:** Auth `ci.yml` runs validation on pushes/PRs; `release.yml` is `workflow_dispatch` only and can publish an image/request promotion if manually dispatched. TCE WF-03 is also `workflow_dispatch` only and can publish/promote if dispatched. No workflow was dispatched. The connected Supabase tool surface has no GitHub-integration settings reader; official Supabase docs confirm a connected production branch can deploy migrations. Because the target binding and merge-triggered database effect cannot be independently ruled out, AUTH-OPS-007 remains BLOCKED and PR #75 stays open. The current instruction allows read-only Supabase inspection only; no migration apply, schema/data write, branch operation, Edge Function deploy or release occurred.
