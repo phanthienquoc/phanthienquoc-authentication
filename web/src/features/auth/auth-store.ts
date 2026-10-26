@@ -14,6 +14,7 @@ type AuthState = {
   signIn: (email: string, password: string) => Promise<"authenticated" | "mfa">;
   signUp: (email: string, password: string) => Promise<void>;
   completeMfa: (challengeToken: string, code: string, recovery?: boolean) => Promise<void>;
+  cancelMfa: () => void;
   restoreSession: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -52,6 +53,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
   },
+  cancelMfa: () => set({ pendingMfaChallengeToken: null, error: null }),
   completeMfa: async (challengeToken, code, recovery = false) => {
     set({ loading: true, error: null });
     try {
