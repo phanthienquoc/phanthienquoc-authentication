@@ -3,7 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export interface AccessClaims {
   sub: string; role: string; typ: 'access'; iss: string; aud: string[];
-  iat: number; exp: number; jti: string;
+  iat: number; exp: number; jti: string; mfa_verified_at?: number;
 }
 
 @Injectable()
@@ -14,7 +14,7 @@ export class JwtService {
     return value;
   }
 
-  issue(userId: string, role: string): string {
+  issue(userId: string, role: string, mfaVerifiedAt?: number): string {
     const now = Math.floor(Date.now() / 1000);
     const header = this.b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
     const payload = this.b64(JSON.stringify({
@@ -23,6 +23,9 @@ export class JwtService {
       aud: (process.env.JWT_AUDIENCE ?? 'tce-dashboard,media-generation').split(',').map((v) => v.trim()).filter(Boolean),
       iat: now, exp: now + Number(process.env.JWT_ACCESS_TTL_SECONDS ?? 900),
       jti: randomBytes(16).toString('hex'),
+      ...(typeof mfaVerifiedAt === 'number' && Number.isSafeInteger(mfaVerifiedAt) && mfaVerifiedAt >= 0 && mfaVerifiedAt <= now
+        ? { mfa_verified_at: mfaVerifiedAt }
+        : {}),
     }));
     const body = `${header}.${payload}`;
     return `${body}.${this.sign(body)}`;
@@ -45,7 +48,10 @@ export class JwtService {
       if (
         !claims.sub || claims.typ !== 'access' || !Number.isFinite(claims.exp) || claims.exp <= now ||
         !Number.isFinite(claims.iat) || claims.iat > now + 60 || claims.iss !== issuer ||
-        !Array.isArray(claims.aud) || !claims.aud.some((v) => audiences.includes(v))
+        !Array.isArray(claims.aud) || !claims.aud.some((v) => audiences.includes(v)) ||
+        (claims.mfa_verified_at !== undefined && (
+          !Number.isSafeInteger(claims.mfa_verified_at) || claims.mfa_verified_at < 0 || claims.mfa_verified_at > now + 60
+        ))
       ) throw new Error('Bad claims');
       return claims;
     } catch {
