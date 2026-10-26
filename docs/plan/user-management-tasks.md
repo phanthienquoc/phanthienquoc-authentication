@@ -138,7 +138,7 @@
   - Mutation controls are not shown until matching protected API routes and tests exist.
   - UI role checks remain supplementary; server-side authorization is authoritative.
 - **Validation:** PR #24 merged at `52864661b10bdd35feedb3266040700033d05238` from exact tested head `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`. [Auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and the frontend container build. [Auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed backend tests, typecheck, build and container build. Post-merge runs #40212871633 and #40212871603 passed. The Supabase Preview app check on the subsequent PR #26 merge SHA `97b8d7498190884715bd1e9c657d2e432de31feb` failed with `Remote migration versions not found in local migrations directory`; the PR #24 merge check itself was skipped because no Supabase branch was associated. This is tracked under AUTH-UM-000 and no migration was applied.
-- **Remaining:** PR #29 implements initial focus, Tab/Shift+Tab containment, Escape dismissal and trigger focus restoration, with source-contract regression coverage. True browser-level focus/dialog interaction tests and responsive-layout tests remain open because the current web test harness is Node's built-in runner, not a browser harness. Mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002.
+- **Remaining:** PR #29 implements initial focus, Tab/Shift+Tab containment, Escape dismissal and trigger focus restoration, with source-contract regression coverage. PR #43 (AUTH-UM-003C) adds a Node 24/Chrome DevTools Protocol browser harness, but is BLOCKED after two materially different harness/process approaches. Latest exact head `632be6c667e419bb6d3443ea642dc777c9171fd8`: web CI [#40229190921](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921) fails `npm test` waiting for the mocked admin row; service CI [#40229190867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190867) passes. Do not merge while web CI fails; investigate the origin/HMR/API-interception contract as a separate task rather than retrying the same harness approach. Mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002.
 - **Dependencies:** AUTH-UM-002 for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
@@ -253,6 +253,23 @@
 - **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or account-mutation dependency.
 - **Risk:** Low — UI state transition only. No auth/data-access contract changes.
 - **Safety:** No direct browser-to-Supabase access, mutation endpoints, schema changes, production release, or live account mutation.
+
+### AUTH-UM-003C — Browser-level admin dialog focus and responsive contract
+
+- **Priority/status:** P2 / BLOCKED — [PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43) remains open; do not merge while web CI fails.
+- **Evidence:** `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`, `web/scripts/admin-user-contract.test.mjs`; exact head `632be6c667e419bb6d3443ea642dc777c9171fd8`; web CI [#40229190921](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921), service CI [#40229190867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190867).
+- **Current behavior:** The test launches Next.js and drives the runner's preinstalled Chrome through Node 24 WebSocket/CDP with mocked API responses. It times out waiting for the mocked `alice@example.com` row. Logs showed `GET /admin/users` returning 200 followed by a blocked cross-origin `/_next/hmr` request from `127.0.0.1`; the expected row never appeared. A second, materially different direct-Next/process-group cleanup approach reproduced the same failure. Service CI passes; web CI fails.
+- **Desired behavior:** Verify actual keyboard focus containment, Escape dismissal, focus restoration, allowlisted detail rendering, and 390×844 / 844×390 / 1280×800 viewport behavior in a stable browser harness.
+- **Acceptance criteria:**
+  - Align browser origin, Next dev host and intercepted API URLs, or choose a separately approved browser harness; do not repeat the same process-launch approach without new evidence.
+  - Preserve the focus, keyboard, response-allowlist and responsive assertions; do not skip or weaken them.
+  - Keep all API responses mocked; no real Supabase, account rows, secrets or mutations.
+  - Assert non-admin UI does not call the admin directory endpoint.
+  - Web CI passes tests, typecheck, lint, build and container build on the exact head; service CI remains green.
+- **Validation:** Inspect exact-head browser logs and screenshots; prove the mocked directory response reaches the page before asserting dialog and viewport behavior.
+- **Dependencies:** Existing read-only UM-3 UI and API contract; no schema, audit, migration or mutation dependency.
+- **Risk:** Low-to-medium — test harness only; runtime authentication and account-management behavior must remain unchanged.
+- **Links:** [PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [web CI failure](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921), [service CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190867).
 
 ## Release evidence and guardrails
 
