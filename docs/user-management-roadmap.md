@@ -61,6 +61,12 @@ All four are `SECURITY DEFINER` with fixed `search_path`; execution is revoked f
 
 The branch metadata still returns `MIGRATIONS_FAILED` even though the ledger contains the new version and all four functions are present. Track that as metadata inconsistency for follow-up; do not claim the apply itself failed. Three other remote-only migration versions are still not represented by source artifacts. `public.users` has no status/suspension column and `auth_admin_audit_events` remains absent, so UM-1B and UM-2 are not ready merely because the RPCs now exist.
 
+## Auth persistence browser-grant remediation — 2026-10-26T03:21:59Z
+
+After the RPC-contract migration, the scoped `revoke_browser_auth_table_privileges` migration was applied to the connected Supabase project at ledger version `20261026032152`. It revokes all direct table privileges from `anon` and `authenticated` for `public.users`, `public.refresh_sessions`, `public.mfa_recovery_codes`, `public.auth_passkey_challenges`, and `public.auth_passkey_credentials`. A separate read-only `has_table_privilege` query confirms those roles cannot SELECT/INSERT/UPDATE/DELETE/TRUNCATE these tables; `service_role` and `postgres` retain those capabilities. `auth_keycloak_identities` already had no browser-role privileges.
+
+The source artifact is tracked in [the Auth migration directory](../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), and detailed evidence is in [AUTH-SEC-002](plan/user-management-tasks.md). No user/account rows were read or modified. This is a grant-only change: RLS remains enabled and no policies exist on the six Auth tables; the security advisor continues to report 29 project-wide `rls_enabled_no_policy` findings. This task does not imply those project-wide findings are fixed or authorize changes to unrelated schemas. The backend access pattern remains the existing NestJS service-role client; full end-to-end auth-flow validation remains separate.
+
 ## Product decision
 
 Build an **admin-only User Management area** with the NestJS API as the enforcement boundary and the Next.js app as a client.
