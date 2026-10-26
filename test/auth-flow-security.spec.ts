@@ -86,7 +86,7 @@ describe('Authentication flow security contracts', () => {
     expect(cookie).toHaveBeenCalledWith(
       'tce_refresh_token',
       expect.any(String),
-      expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/api/auth' }),
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/auth' }),
     );
     expect(result).toEqual({ accessToken: 'access-token' });
     expect(JSON.stringify(result)).not.toContain('hashed:');
@@ -183,7 +183,7 @@ describe('Authentication flow security contracts', () => {
     expect(cookie).toHaveBeenCalledWith(
       'tce_refresh_token',
       expect.any(String),
-      expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/api/auth' }),
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/auth' }),
     );
     expect(result).toEqual({ accessToken: 'access-token' });
     expect(JSON.stringify(result)).not.toContain('presented-refresh-token');
@@ -234,7 +234,7 @@ describe('Authentication flow security contracts', () => {
     expect(cookie).toHaveBeenCalledWith(
       'tce_refresh_token',
       '',
-      expect.objectContaining({ httpOnly: true, maxAge: 0, path: '/api/auth' }),
+      expect.objectContaining({ httpOnly: true, maxAge: 0, path: '/auth' }),
     );
   });
 
