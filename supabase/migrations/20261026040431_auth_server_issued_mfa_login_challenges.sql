@@ -1,3 +1,4 @@
+-- Applied to the connected Supabase project on 2026-10-26 as ledger version 20261026040431.
 -- Server-issued, short-lived challenges bind MFA completion to a prior first factor.
 -- Only SHA-256 token hashes are stored; raw challenge tokens are returned once to the client.
 -- All access is through service_role-executable SECURITY DEFINER RPCs; no direct table grants.
