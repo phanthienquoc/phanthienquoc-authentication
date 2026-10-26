@@ -13,7 +13,7 @@ export function AuthScreen() {
   const [mfaCode, setMfaCode] = useState("");
   const [pendingMfa, setPendingMfa] = useState(false);
   const [useRecovery, setUseRecovery] = useState(false);
-  const { accessToken, user, loading, error, signIn, signUp, completeMfa, pendingMfaUserId, restoreSession, signOut, setError } = useAuthStore();
+  const { accessToken, user, loading, error, signIn, signUp, completeMfa, pendingMfaChallengeToken, restoreSession, signOut, setError } = useAuthStore();
 
   useEffect(() => { void restoreSession(); }, [restoreSession]);
 
@@ -29,7 +29,7 @@ export function AuthScreen() {
       }
       const result = await signIn(email, password);
       if (result === "mfa") {
-        // API's MFA-required response contains the pending user id; login action below
+        // API's MFA-required response contains an opaque, expiring server-issued challenge token; login action below
         // handles the backend's explicit MFA challenge flow.
         setPendingMfa(true);
       }
@@ -42,8 +42,8 @@ export function AuthScreen() {
     event.preventDefault();
     setError(null);
     try {
-      if (!pendingMfaUserId) throw new Error("MFA challenge context is missing. Please sign in again.");
-      await completeMfa(pendingMfaUserId, mfaCode, useRecovery);
+      if (!pendingMfaChallengeToken) throw new Error("MFA challenge context is missing. Please sign in again.");
+      await completeMfa(pendingMfaChallengeToken, mfaCode, useRecovery);
       setPendingMfa(false);
     } catch {
       // Error state is surfaced by Zustand.
