@@ -228,3 +228,5 @@ Stable task IDs, implementation evidence and current blockers are maintained in 
 - Current code: `src/auth/auth.controller.ts`, `src/auth/auth.service.ts`, `src/auth/auth.repository.ts`, `src/auth/keycloak/`, `web/src/services/auth-api.ts`.
 - Current architecture: `README.md`, `docs/web-ui-integration.md`, `docs/keycloak-oidc-foundation.md`.
 - Authorization baseline: [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) — deny by default, least privilege, per-request server-side checks and authorization tests.
+- **Source-level regression sub-slice:** [AUTH-UM-004A / draft PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70) adds suspended-refresh and status-enforcement migration-contract tests. These tests do not replace controlled end-to-end integration against an explicitly approved non-production target.
+
