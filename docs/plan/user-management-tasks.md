@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-27 03:27 +07:00 (read-only Supabase schema/RPC/advisor/log recheck; UM-4 GET-route HTTP tests added)
+**Last audited:** 2026-10-27 04:33 +07:00 (fresh Supabase schema/RPC/ACL/ledger/advisor/log inspection; UM-4 audit-failure HTTP tests added)
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -571,3 +571,27 @@
 - **Advisors/logs:** Security advisors report 35 project-wide RLS-enabled/no-policy findings, one SECURITY DEFINER view, eight mutable search paths, 42 GraphQL-exposure findings for each browser role, and leaked-password protection disabled. Performance advisors report 15 unindexed foreign keys, one missing primary key, and 134 unused indexes. The read-only log aggregation showed activity across edge, PostgREST, Postgres and workflow-run sources; a phrase-count over `log_attributes` did not find the known migration-mismatch/timeout strings, which is not proof those events are absent from other log fields. No unrelated object was changed.
 - **UM-4 source slice:** Added GET directory/detail HTTP tests on the existing PR branch in commit `558b9a6d6181b0e1c4d7f5e58269f84fd59d7518`. These use a real NestJS HTTP pipeline with synthetic rows and a mocked Supabase client; they are not live DB/MFA/passkey integration. Exact-head CI must be rechecked after this commit and this task-document update.
 - **Merge gate:** Auth `ci.yml` runs validation on pushes/PRs; `release.yml` is `workflow_dispatch` only and can publish an image/request promotion if manually dispatched. TCE WF-03 is also `workflow_dispatch` only and can publish/promote if dispatched. No workflow was dispatched. The connected Supabase tool surface has no GitHub-integration settings reader; official Supabase docs confirm a connected production branch can deploy migrations. Because the target binding and merge-triggered database effect cannot be independently ruled out, AUTH-OPS-007 remains BLOCKED and PR #75 stays open. The current instruction allows read-only Supabase inspection only; no migration apply, schema/data write, branch operation, Edge Function deploy or release occurred.
+
+
+## Read-only schema recheck and UM-4 audit-failure slice — 2026-10-27 04:33 +07:00
+
+### AUTH-UM-004D — Fail-closed audit persistence at the HTTP boundary
+
+- **Priority/status:** P1 / IMPLEMENTED — exact-head CI pending.
+- **Evidence:** On the existing dedicated UM-4 branch, extend `test/users-management.http.spec.ts` to simulate `auth_record_admin_audit_event` returning a database error. Cover both current-admin denial and recent-MFA denial through the actual NestJS HTTP pipeline.
+- **Current behavior:** `AdminAuditService.record()` maps RPC errors, thrown errors, and empty/non-string IDs to a generic `503 Service Unavailable`; `AdminGuard` and `RecentMfaGuard` do not proceed to lifecycle mutation after audit persistence fails.
+- **Desired behavior:** Authorization denials remain fail-closed when audit storage is unavailable; raw database error details do not reach the HTTP response; no role/status/session mutation RPC runs.
+- **Acceptance criteria:** [x] Exercise both denial paths over HTTP; [x] assert 503 and generic error text; [x] assert synthetic DB error detail is redacted; [x] assert audit RPC is the only RPC and lifecycle mutation is not invoked; [ ] pass Auth Service CI on the final PR head; [ ] retain live integration as blocked until runtime/project binding is verified.
+- **Validation:** Synthetic test data and mocked Supabase client only. No account rows or credential material read; no schema, data, migration, grant, branch, function or deployment operation.
+- **Dependencies:** Existing UM-1 authorization/audit foundation; UM-4 exact-head CI. Live integration remains blocked by AUTH-OPS-007.
+- **Risk:** Low for this test-only slice; it strengthens the fail-closed contract without changing runtime behavior.
+- **Links:** [Roadmap](../user-management-roadmap.md), [UM tracker issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #75](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/75).
+
+### Fresh Supabase contract evidence
+
+- `list_projects` and `get_project` independently return the same sole project ref `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, region `ap-southeast-1`, PostgreSQL `17.6.1.084`, API `ACTIVE_HEALTHY`. `list_branches` returns only non-persistent default branch `main` / Git `master`, ID `5132b831-8223-4dc4-8f39-707415c96f1b`, status `MIGRATIONS_FAILED`.
+- Runtime mapping is still not corroborated by repo/CI values: Auth `.env.example` is a placeholder; TCE `apps/service/.env.auth.example` leaves `SUPABASE_URL` blank. No account rows or secret values were read.
+- Live catalog: `public.users.role` is `NOT NULL DEFAULT 'USER'` with CHECK `USER | ADMIN`; `status` is `NOT NULL DEFAULT 'ACTIVE'` with CHECK `ACTIVE | SUSPENDED`. Eight inspected Auth tables have RLS enabled and no direct `anon`/`authenticated` table grants; `service_role` has the expected server-side access.
+- Fourteen current `public.auth_%` routines are `SECURITY DEFINER`, fixed to `search_path=pg_catalog, public, pg_temp`; catalog checks report no EXECUTE for `anon`/`authenticated` and EXECUTE for `service_role`. The three lifecycle RPC signatures still match migration/application contracts. No RPC was invoked.
+- Migration ledger remains 78 versions through `20261026122224`; missing historical source/version mismatches remain tracked under AUTH-UM-000. Bounded logs still contain `Remote migration versions not found in local migrations directory` events on the listed main branch; they do not establish which commit/integration caused them.
+- Current Supabase documentation was searched for GitHub deployment and branching. The official docs describe automatic deployment/migration behavior for a connected GitHub default branch. The connected integration binding is not exposed by the available tools, so AUTH-OPS-007 remains BLOCKED and no PR is merged.
