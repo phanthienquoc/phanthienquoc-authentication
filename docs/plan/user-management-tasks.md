@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 12:41 +07:00  
+**Last audited:** 2026-10-26 12:49 +07:00  
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -30,8 +30,9 @@
 
 ### AUTH-OPS-002 — Reconcile remaining Supabase migration history and integration status
 
-- **Priority/status:** P1 / IN PROGRESS — read-only reconciliation is current; environment classification is unresolved and branch metadata remains `MIGRATIONS_FAILED`. No migration or Supabase branch operation was performed by this run.
+- **Priority/status:** P1 / IN PROGRESS — read-only reconciliation is current; the only listed branch is default/base (`is_default=true`, `persistent=false`) with status `MIGRATIONS_FAILED`. Treat it as production-equivalent until a separate safe non-production target is confirmed. No migration or Supabase branch operation was performed.
 - **Evidence:** `list_projects/get_project` returned the project whose ref `gtqovpusfyyvxpeezxlo` is explicitly documented in this roadmap. The project reports `ACTIVE_HEALTHY`, but its only branch is default/base `main` (Git branch `master`), `is_default=true`, `persistent=false`, with status `MIGRATIONS_FAILED`; treat it as production-equivalent because no separate development/preview branch is listed. Auth `.env.example` has a placeholder; TCE stores `SUPABASE_URL` only in GitHub secrets, and secret values are not visible, so the exact runtime URL-to-ref mapping is not independently confirmed. PR #55's Supabase Preview check is `skipped` because the Git branch is not associated with a Supabase branch and preview-branch creation is disabled; this is not a passing migration check.
+- **Advisors (2026-10-26):** Supabase Security Advisor reports 34 project-wide `rls_enabled_no_policy` findings; Performance Advisor reports 15 unindexed foreign keys across the shared project. These span tables outside Authentication scope; no blanket RLS/index changes were made.
 - **Current behavior:** The live ledger includes `20261026030920 auth_persistence_rpc_contract_reconcile`, `20261026032152 revoke_browser_auth_table_privileges`, `20261026035340 auth_admin_audit_events`, `20261026035431 auth_admin_audit_rpc_only_access`, and `20261026040431 auth_server_issued_mfa_login_challenges`. The source for `20261026040431` is on PR #55 and is not on `master`. `public.users` has no status/suspension column. The four core source RPCs, audit RPC and five MFA challenge RPCs are present with fixed `search_path` and EXECUTE limited to `service_role` plus owner `postgres`; browser-role direct grants are absent for the scoped Auth tables. Three remote-only versions (`20261014024759`, `20261014130516`, `20261014131151`) have no source artifact; remote `20261020234922 keycloak_identity_persistence` differs from local `20261014000000_keycloak_identity_persistence.sql`; local `20261012000000_auth_persistence_rpcs.sql` is absent from the remote ledger even though its current RPC contracts exist under later migration history.
 - **Desired behavior:** Keep every migration version represented by authoritative SQL, reconcile remote-only/version-mismatched history without reconstructing files from names or catalog state, and identify an explicitly safe non-production target before any migration-bearing merge/apply.
 - **Acceptance criteria:**
@@ -173,32 +174,34 @@
   - Never hard-delete by default; Keycloak identities remain separate and read-only.
   - Do not add mutation routes until schema, audit persistence and authorization/concurrency tests pass.
   - [x] Keep mutation routes off master; the UM-2B routes exist only on the isolated, unmerged lifecycle branch.
-- **Validation:** UM-2A code head `45e964a65e36cba304836237779632ada3ac8fa8` passed Auth service CI [#40274597989](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40274597989). UM-2B source adds controller/service and migration-contract tests; code head `fe7b773a9629d0a44c18f47f2e3561fda8e3eea0` passed Auth service CI [#40275380993](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40275380993): tests, typecheck, build and container build. Additional deny-by-default migration assertions are included in this follow-up and must be rechecked on the latest head. Supabase Preview was skipped; this is not live database integration validation. Do not merge until a safe non-production target is confirmed and migration-history drift is reconciled.
+- **Validation:** UM-2A code head `45e964a65e36cba304836237779632ada3ac8fa8` passed Auth service CI [#40274597989](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40274597989). UM-2B lifecycle code head `aeed2451c5f56fbfa8010139bc4583383cc8daee` is included in PR #60; run [#40276030472](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40276030472) is the exact-head validation record. Supabase Preview is skipped, not live database validation. No migration was applied. Do not merge until a safe non-production target is confirmed and migration-history drift is reconciled.
 - **UM-2A live-contract review (2026-10-26 12:31 +07):** Read-only catalog confirms `public.users.status` is absent and `refresh_sessions.ip` is `inet`; `pg_cast` has no `text`→`inet` cast. The branch migration now uses balanced `$$` function delimiters and `nullif(p_ip, '')::inet`, with a focused static contract test. `AuthRepository.updateMfa` now predicates on `status = 'ACTIVE'`; the branch AdminGuard denies suspended admins. Live schema remains unchanged, and migration `20261026053000` is not in the remote ledger. Keep PR #59 stacked on PR #55 and open until the exact Supabase target is confirmed safe non-production and migration history is reconciled.
 - **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, AUTH-SEC-001, and safe release workflow handling under AUTH-OPS-001; explicit non-production target confirmation.
 - **Risk:** Critical — unsafe mutations can lock out administrators or leave compromised sessions active.
-- **Links:** [PR #18](https://github.com/phanthienquoc/p### AUTH-UM-002B — Audit-atomic legacy account lifecycle mutations
+- **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
-- **Priority/status:** P1 / IN PROGRESS — branch [feat/auth-um-2-lifecycle-api-20261026](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um-2-lifecycle-api-20261026); PR creation follows exact-head validation.
+### AUTH-UM-002B — Audit-atomic legacy account lifecycle mutations
+
+- **Priority/status:** P1 / IN PR #60 — audit-atomic role/status/session RPCs and guarded API routes on [feat/auth-um-2-lifecycle-api-20261026](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um-2-lifecycle-api-20261026). PR #60 is stacked on PR #59; neither migration has been applied. The only Supabase branch is default/base and must be treated as production-equivalent until a safe non-production target is confirmed.
 - **Evidence:** src/users/users-management.controller.ts, src/users/users-management.service.ts, src/users/admin.guard.ts, src/users/admin-audit.service.ts, migration 20261026035340_auth_admin_audit_events.sql, and live read-only catalog/ACL checks.
-- **Current behavior:** master has guarded GET-only user list/detail. The lifecycle branch adds PATCH role/status and POST revoke-sessions routes, each behind AdminGuard and backed by service-only RPCs. No UI mutation controls are added.
+- **Current behavior:** master has guarded GET-only user list/detail. PR #60 adds PATCH role/status and POST revoke-sessions routes behind AdminGuard and service-only RPCs, plus status projection/filtering for the read-only directory. No UI mutation controls are added.
 - **Desired behavior:** Active database-backed administrators can change legacy account roles, suspend/reactivate accounts, and revoke all refresh sessions. Every mutation is one transaction with an allowlisted audit event; suspension and session revocation are atomic.
 - **Acceptance criteria:**
   - [x] Require an active ADMIN actor in AdminGuard and independently inside each RPC.
   - [x] Prevent self-role changes and self-suspension; serialize lifecycle mutations with a shared advisory lock and protect the last active administrator.
-  - [x] Revoke all active refresh sessions in the same transaction as suspension; reactivation does not restore sessions.
+  - [x] Revoke all active refresh sessions in the same transaction as suspension; repeated suspension and reactivation also clear stale sessions, and reactivation does not restore sessions.
   - [x] Make audit persistence atomic; an audit failure rolls back the mutation.
   - [x] Restrict RPC EXECUTE to service_role; use fixed search_path and allowlisted response fields.
   - [x] Keep signup fixed to USER, hard-delete absent, UI read-only, and Keycloak identities separate.
   - [x] Add controller/service and static migration-contract tests for routes, authorization, last-admin protection, audit, grants and secret redaction.
+  - [x] Audit authenticated non-admin/suspended access denials with allowlisted metadata only; do not log bearer tokens or unverified identities.
   - [ ] Recheck exact-head Auth service CI after the additional deny-by-default assertions.
   - [ ] Validate SQL/RPC behavior on an explicitly approved non-production Supabase target.
   - [ ] Merge only after all required checks pass and the pre-merge side-effect gate is cleared.
-- **Validation:** Source and unit/static-contract tests only; no live migration or database mutation was performed. The only listed Supabase branch is the default/base branch with MIGRATIONS_FAILED, so SQL integration remains blocked.
+- **Validation:** Earlier code head `4b0cc0049a91a847f2f4a0c737505024e289b351` passed Auth service CI [#40275820419](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40275820419). Latest hardening commit `aeed2451c5f56fbfa8010139bc4583383cc8daee` adds status filtering/projection and repeated-suspension/reactivation session revocation; exact-head CI is tracked at [#40276030472](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40276030472). Supabase Preview is skipped and live SQL/RPC validation remains blocked; no migration or database mutation was performed.
 - **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, AUTH-SEC-001, AUTH-UM-002A, AUTH-OPS-002.
 - **Risk:** Critical — role escalation, administrator lockout, active sessions after suspension, or unaudited privilege changes.
 - **Links:** [Roadmap](../user-management-roadmap.md), [UM-2A branch](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um-2-suspension-enforcement-20261026).
-hanthienquoc-authentication/pull/18), [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
 ### AUTH-UM-003 — Protected admin users UI (UM-3)
 
