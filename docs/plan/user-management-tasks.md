@@ -264,20 +264,21 @@
 
 ### AUTH-UM-003C — Browser-level admin dialog focus and responsive contract
 
-- **Priority/status:** P2 / IMPLEMENTED — browser coverage passes on the updated branch; merge remains blocked by the unverified Supabase GitHub integration target.
-- **Evidence:** `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`, `web/scripts/admin-user-contract.test.mjs`; updated exact head `d5bb7707314a8ffd9b214a55f46062847b237698`; web CI [#40252750055](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055) passed, while Supabase Preview was skipped because no Supabase Branch is associated.
-- **Current behavior:** PR #45 retains mocked API responses, keyboard/focus assertions, allowlisted detail rendering, non-admin denial coverage and 390×844 / 844×390 / 1280×800 viewport checks. Its narrow Next.js development-origin allowlist fixes the observed loopback HMR origin mismatch without changing production origins. Older PR #43 reproduced the row timeout and is now closed as superseded by #45.
-- **Desired behavior:** Keep the browser test stable and exact-head reproducible without weakening focus, keyboard, response-allowlist or viewport assertions.
+- **Priority/status:** P2 / IMPLEMENTED IN PR #45 — exact-head auth-web and auth-service CI pass; merge remains blocked by the unverified Supabase GitHub integration target.
+- **Evidence:** `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`, `web/scripts/admin-user-contract.test.mjs`; exact head `420b97b79991b376062189e7ae27ae8589556499`; auth-web CI [#40258016309](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309), auth-service CI [#40258016304](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304).
+- **Current behavior:** The first passing browser harness exposed a real 844×390 defect: the dialog extended from y=-23 to y=413. PR #45 now bounds the dialog height to the viewport and enables internal vertical scrolling; the browser test verifies the content is scrollable and the bottom is reachable. All API responses remain mocked; keyboard/focus, allowlisted detail rendering, non-admin denial and 390×844 / 844×390 / 1280×800 checks remain enabled. PR #43 is closed as superseded.
+- **Desired behavior:** Keep the read-only detail dialog fully within each viewport while preserving access to content through internal scrolling; maintain stable browser assertions without real account data or a browser-to-Supabase path.
 - **Acceptance criteria:**
   - [x] Align the isolated local browser origin with Next's dev-resource allowlist.
-  - [x] Preserve the focus, keyboard, response-allowlist and responsive assertions; no skips or weakened assertions.
+  - [x] Keep the dialog within 390×844, 844×390 and 1280×800 viewports without horizontal overflow.
+  - [x] At 844×390, assert internal vertical scrolling and verify the dialog content can be scrolled to its bottom.
+  - [x] Preserve focus, keyboard, response-allowlist and non-admin API-denial assertions; no skips or weakened assertions.
   - [x] Keep all API responses mocked; no real Supabase, account rows, secrets or mutations.
-  - [x] Assert non-admin UI does not call the admin directory endpoint.
-  - [x] Web CI passes tests, typecheck, lint, build and container build on exact head `d5bb7707314a8ffd9b214a55f46062847b237698`.
-- **Validation:** Exact-head web CI [#40252750055](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055) passed. The Supabase Preview check was skipped, not passed; do not merge until the external integration target and merge-time migration behavior are verified safe.
+  - [x] Exact-head auth-web and auth-service CI pass on `420b97b79991b376062189e7ae27ae8589556499`.
+- **Validation:** Auth-web and auth-service CI passed on exact head `420b97b79991b376062189e7ae27ae8589556499`. The Supabase Preview check remains skipped because no Supabase Branch is associated; do not merge until the external integration target and merge-time migration behavior are verified safe.
 - **Dependencies:** Existing read-only UM-3 UI and API contract; no schema, audit, migration or mutation dependency. Supabase integration safety remains a repository-level merge gate.
-- **Risk:** Low-to-medium — test harness and dev-only allowlist; runtime authentication and account-management behavior must remain unchanged.
-- **Links:** [superseded PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [current PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45), [web CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055).
+- **Risk:** Low-to-medium — test harness and dev-only allowlist plus a page-scoped scroll constraint; runtime authentication and account-management behavior remain unchanged.
+- **Links:** [superseded PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [current PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45), [auth-web CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309), [auth-service CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304).
 
 ## Release evidence and guardrails
 
