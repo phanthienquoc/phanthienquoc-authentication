@@ -67,6 +67,12 @@ After the RPC-contract migration, the scoped `revoke_browser_auth_table_privileg
 
 The source artifact is tracked in [the Auth migration directory](../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), and detailed evidence is in [AUTH-SEC-002](plan/user-management-tasks.md). No user/account rows were read or modified. This is a grant-only change: RLS remains enabled and no policies exist on the six Auth tables; the security advisor continues to report 29 project-wide `rls_enabled_no_policy` findings. This task does not imply those project-wide findings are fixed or authorize changes to unrelated schemas. The backend access pattern remains the existing NestJS service-role client; full end-to-end auth-flow validation remains separate.
 
+## Login/refresh/passkey regression coverage — 2026-10-26
+
+The consolidated suite in `test/auth-flow-security.spec.ts` carries forward the previously green test-only slice from PR #49 onto current master in [PR #52](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52). It verifies normalized login, no session issuance while MFA is pending, refresh-token-only HttpOnly cookie delivery, refresh reuse/error cookie clearing, logout revocation, and fail-closed passkey behavior. It uses mocks only and is not a substitute for non-production database integration testing.
+
+UM security follow-ups remain explicit: `AUTH-SEC-001` must bind MFA completion to a server-issued first-factor challenge; the missing account status/audit schema must be designed and validated before UM-2 mutations; no claim is made that suspension enforcement is complete across login/refresh/MFA/passkey.
+
 ## Product decision
 
 Build an **admin-only User Management area** with the NestJS API as the enforcement boundary and the Next.js app as a client.
