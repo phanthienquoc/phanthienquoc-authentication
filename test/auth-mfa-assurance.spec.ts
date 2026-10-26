@@ -10,7 +10,13 @@ const mfaAdmin: AuthUser = {
 };
 
 function makeService() {
-  const repository = { createRefreshSession: jest.fn().mockResolvedValue(undefined) };
+  const repository = {
+    createRefreshSession: jest.fn().mockResolvedValue(undefined),
+    rotateRefreshSession: jest.fn().mockResolvedValue({
+      status: 'rotated',
+      user: { id: mfaAdmin.id, email: mfaAdmin.email, role: mfaAdmin.role, status: 'ACTIVE', mfa_enabled: true },
+    }),
+  };
   const passwords = { hashToken: jest.fn((value: string) => `hash:${value}`) };
   const jwt = { issue: jest.fn().mockReturnValue('access-token') };
   const service = new AuthService(
@@ -39,9 +45,16 @@ describe('MFA assurance in access tokens', () => {
     expect(jwt.issue).toHaveBeenCalledWith(mfaAdmin.id, mfaAdmin.role, expect.any(Number));
   });
 
-  it('does not add MFA assurance to password-only or refreshed-token issuance', async () => {
+  it('does not add MFA assurance to password-only issuance', async () => {
     const { service, jwt, response } = makeService();
     await service.issueLoginForUser({ ...mfaAdmin, mfaEnabled: false }, { response });
+    expect(jwt.issue).toHaveBeenCalledWith(mfaAdmin.id, mfaAdmin.role);
+  });
+
+
+  it('does not preserve MFA assurance when a refresh token mints a new access token', async () => {
+    const { service, jwt, response } = makeService();
+    await service.refresh('refresh-token', { response });
     expect(jwt.issue).toHaveBeenCalledWith(mfaAdmin.id, mfaAdmin.role);
   });
 
