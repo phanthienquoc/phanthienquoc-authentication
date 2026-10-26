@@ -28,23 +28,23 @@
 - **Risk/remaining control:** Manual dispatch intentionally retains the ability to publish/promote production images; it must not be dispatched without separate release authorization. The prior [PR #18 release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836) proves only that a promotion request occurred, not that production rollout/health was verified.
 - **Links:** [release workflow](../../.github/workflows/release.yml), [PR #22](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/22).
 
-### AUTH-OPS-002 — Reconcile remaining Supabase migration history and integration status
+### AUTH-OPS-002 — Reconcile Supabase migration history and prove merge-time environment safety
 
-- **Priority/status:** P1 / IN PROGRESS — two scoped Auth migrations now apply and verify successfully, but three other remote-only migration versions still lack source artifacts and branch metadata still reports `MIGRATIONS_FAILED`.
-- **Evidence:** Supabase project ref `gtqovpusfyyvxpeezxlo`; direct apply successes for `20261026030920 auth_persistence_rpc_contract_reconcile` and `20261026032152 revoke_browser_auth_table_privileges`; read-only `list_migrations`, `pg_proc`/ACL queries and `has_table_privilege` verification. Previous master-push Supabase Preview check [#121371496330](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks) failed with `Remote migration versions not found in local migrations directory`.
-- **Current behavior:** The four source-required RPCs are present with service-role-only EXECUTE grants, and direct browser table privileges are removed from the five legacy Auth tables. The connected branch metadata still reports `MIGRATIONS_FAILED` despite those migration-ledger entries and verified catalog effects. `.env.example` still has a placeholder project ref; the exact runtime URL is not exposed in source. Three remote-only migrations (`20261014024759`, `20261014130516`, `20261014131151`) remain without matching source files.
-- **Desired behavior:** Keep each applied migration represented by its exact SQL artifact and reconcile remote-only history from authoritative artifacts; avoid fabricating migration contents from names or current catalog state.
+- **Priority/status:** P0 / BLOCKED for further merges — the connected project's environment and exact GitHub-integration target are not independently verified; branch metadata still reports `MIGRATIONS_FAILED`, and three remote-only migration versions lack authoritative local artifacts.
+- **Evidence:** Connected project ref `gtqovpusfyyvxpeezxlo` was discovered via read-only `list_projects/get_project`; `list_branches` returns only non-persistent `main` tracking Git `master`, with the same project ref and status `MIGRATIONS_FAILED`. Current `list_migrations` includes `20261026030920 auth_persistence_rpc_contract_reconcile` and `20261026032152 revoke_browser_auth_table_privileges`. Read-only `pg_proc` confirms four `auth_*` RPC signatures and service-role-only EXECUTE; `information_schema.role_table_grants` confirms no `anon`/`authenticated` grants on the five legacy Auth tables. [PR #47 merge check #121371496330](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks) failed with `Remote migration versions not found in local migrations directory`; PR #52's Supabase Preview check was skipped, not passed.
+- **Current behavior:** Four source-required RPCs exist with fixed search paths and `postgres`/`service_role` EXECUTE only. The five legacy Auth tables have no direct `anon`/`authenticated` table grants; `service_role` retains access. The audit table and `users.status` are still absent from the inspected live schema. Remote-only versions `20261014024759`, `20261014130516`, and `20261014131151` remain without matching artifacts; local Keycloak migration version also differs from remote history. `.env.example` contains a placeholder, so the exact runtime project binding and production/non-production classification remain unproven.
+- **Desired behavior:** Reconcile migration history only from authoritative artifacts; establish whether the connected integration can apply migrations to production; never merge any PR while that merge can trigger an unapproved deployment/migration against an unverified target.
 - **Acceptance criteria:**
-  - [x] Track the two scoped applied Auth migrations in `supabase/migrations/`.
-  - [x] Verify RPC signatures/ACLs and browser-role table privileges after the respective migrations without reading account rows.
-  - [ ] Find authoritative artifacts/revisions for the three remote-only migration versions in the two authorized repositories or repository history.
-  - [ ] Recheck the Supabase integration outcome after PR #51 merges; classify `MIGRATIONS_FAILED` based on exact evidence rather than status label alone.
-  - [x] Keep changes scoped to Auth tables and preserve the existing service-role client; no branch creation, reset, database data mutation or application release was performed.
-- **Validation:** Supabase `apply_migration` returned success for both versions; post-apply catalog checks verified function signatures, service-role grants and removal of `anon`/`authenticated` SELECT/INSERT/UPDATE/DELETE/TRUNCATE on five Auth tables. Repo CI runs against PR heads remain the source of code validation.
-- **Dependencies:** Authoritative source for the three remote-only versions and exact outcome of the current Supabase GitHub integration.
-- **Risk:** Medium/high — an external integration may continue to report migration-history drift even though these two narrow changes are applied. Do not repair unrelated migration history by guessing.
+  - [x] Track both scoped Auth migrations in `supabase/migrations/` and verify their current database effects read-only.
+  - [x] Verify the four RPC signatures/ACLs and browser-role grants without reading account rows.
+  - [ ] Find authoritative artifacts/revisions for all three remote-only migration versions; do not reconstruct from names or catalog state.
+  - [ ] Verify the connected Supabase integration's repository, target branch/environment, and exact merge-time side effects using authoritative configuration.
+  - [ ] Re-run safe non-production migration validation only after the target is independently proven non-production.
+  - [x] No Supabase branch was created/reset/rebased/merged and no application release was dispatched during this audit run.
+- **Validation:** Read-only project/branch discovery, verbose table inspection, migration history, catalog SQL, advisors and bounded Postgres-log query completed on 2026-10-26. The branch status remains inconsistent with successful migration ledger/catalog evidence; investigate rather than treating the status label as a definitive migration result.
+- **Dependencies:** Authoritative artifacts for remote-only migrations and proof of the integration target/environment.
+- **Risk:** Critical — merge-time integration can run migrations/deployment even when the GitHub change is documentation-only or test-only.
 - **Links:** [UM roadmap](../user-management-roadmap.md), [RPC-contract migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql), [grant-revocation migration](../../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), [prior Supabase Preview failure](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks).
-
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
 - **Priority/status:** P0 / PARTIALLY RECONCILED — the four source-required RPCs were applied to the connected Supabase project and verified on 2026-10-26; the migration source artifact and caller type fix are in this PR. Three other remote-only migration versions remain unaccounted for. UM-1B audit persistence, UM-2 lifecycle mutations, status enforcement, and UM-4 integration validation remain separate work.
@@ -119,37 +119,38 @@
 
 ### AUTH-UM-001B — Privileged audit persistence (UM-1 foundation)
 
-- **Priority/status:** P1 / BLOCKED on non-production schema validation.
-- **Evidence:** `supabase/migrations/`, `src/db/supabase.client.ts`, `src/auth/auth.repository.ts`; roadmap records no admin/audit table in the inspected live schema.
-- **Current behavior:** No admin audit table or atomic/reliable audit-write contract exists.
-- **Desired behavior:** Append-only audit events for successful and failed privileged operations with actor/provider, action, target/provider, timestamp, outcome and correlation/request ID; safe before/after metadata only.
+- **Priority/status:** P1 / IN PR — additive audit schema and a server-only allowlisted writer are drafted on [the dedicated UM-1B branch](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um1b-audit-contract-20261026). The migration is not applied and the PR must remain open until a safe non-production target is verified.
+- **Evidence:** Read-only schema discovery on 2026-10-26 found no `public.auth_admin_audit_events` table and no `public.users.status` column. The proposed migration adds only the audit table, indexes, and service-role-only `auth_record_admin_audit_event` RPC; no user rows or existing account fields are changed. `src/users/admin-audit.service.ts` maps a typed allowlist to the RPC and normalizes database errors.
+- **Current behavior:** No audit table or write contract exists in the inspected database. Existing user-management endpoints remain GET-only; no role/status/session mutation endpoint is added by this slice.
+- **Desired behavior:** Append-only audit events for successful and failed legacy-admin operations, with actor/target IDs, action, outcome, timestamp, safe before/after role/status values, an enum reason code and a validated correlation ID. Keycloak remains a separate, read-only identity path.
 - **Acceptance criteria:**
-  - Additive, reviewed schema design validated only in an approved non-production environment.
-  - Server-only/service-role access; RLS and grants are explicitly checked.
-  - Audit failure behavior is explicit and tested before enabling mutation endpoints.
-  - No tokens, passwords, MFA secrets/recovery codes, passkey material or credential hashes are stored.
-- **Validation:** Non-production migration/schema test; audit insert/read authorization tests; failure injection; redaction tests.
-- **Dependencies:** AUTH-UM-000 and approved non-production Supabase environment.
-- **Risk:** High — missing or overexposed audit data weakens incident response and can leak security metadata.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
-
+  - [x] Proposed schema has an allowlisted action/outcome set, safe role/status fields, no generic JSON/free-form metadata, and indexes for actor/target chronology.
+  - [x] Revoke direct table access from `PUBLIC`, `anon`, and `authenticated`; grant RPC EXECUTE only to `service_role` (owner retains access).
+  - [x] Writer maps only typed fields and normalizes errors without returning database details; unit tests assert secret-like extra properties are not forwarded.
+  - [ ] Run exact-head CI and inspect the migration SQL after CI completes.
+  - [ ] Validate the migration, table grants, function signature/ACL and audit failure behavior in an independently verified non-production environment.
+  - [ ] Prove audit writes are atomic with each eventual mutation before adding mutation routes; no route is added in this slice.
+- **Validation:** Source-level test is included; database integration validation is not run because the only listed Supabase branch is not an approved non-production target and has unresolved migration drift.
+- **Dependencies:** AUTH-OPS-002 and AUTH-UM-000; AUTH-UM-002 remains blocked until status schema, audit semantics, authorization and concurrency gates are satisfied.
+- **Risk:** High — an over-broad audit writer could forge events or leak credentials; the proposed writer deliberately accepts only allowlisted metadata and is service-role-only.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [proposed audit migration](../../supabase/migrations/20261026040000_auth_admin_audit_events.sql).
 ### AUTH-UM-002 — Legacy account lifecycle API (UM-2)
 
-- **Priority/status:** P1 / PARTIALLY DONE — read-only list/detail exists; mutations remain BLOCKED by AUTH-UM-000 and AUTH-UM-001B.
-- **Evidence:** `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/mfa.service.ts`, `src/auth/passkey.service.ts`, `supabase/migrations/`.
-- **Current behavior:** Read-only list/detail endpoints are merged. The live schema recorded in the roadmap has no account-status column or audit table; current session revocation methods target an individual refresh token/session, not all active sessions by user. Role/status/session mutation endpoints are not implemented.
-- **Desired behavior:** Audited role change within policy, reversible suspension/reactivation, and revoke-all-sessions for legacy NestJS accounts only.
+- **Priority/status:** P1 / BLOCKED for mutation implementation — read-only list/detail is merged, but the live schema has no account-status/suspension column and the proposed audit schema has not been validated/applied in a safe non-production environment.
+- **Evidence:** `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/mfa.controller.ts`, `src/auth/passkey.service.ts`, and current read-only catalog results. Current login, refresh, MFA and passkey paths have no status field to enforce. Existing session revocation methods operate on one token/session, not all sessions for a user.
+- **Current behavior:** Admin user list/detail is read-only. `public.users` contains no `status`, `suspended_at`, or `suspended_by` columns; no mutation endpoints exist. Login, refresh, MFA and passkey do not yet enforce suspension because no authoritative status contract exists.
+- **Desired behavior:** Audited role change, reversible suspension/reactivation, and atomic revoke-all-sessions for legacy NestJS accounts only.
 - **Acceptance criteria:**
-  - Every mutation is protected by current database-backed admin authorization and an audit record.
+  - Every mutation validates the current database-backed active admin, not just stale JWT role claims, and commits its audit record atomically with the mutation.
   - Prevent self-role-change, self-escalation and last-active-admin lockout, including concurrent requests.
-  - Suspension and revocation semantics are atomic/idempotent and documented.
+  - Suspension is enforced at password login, refresh rotation, MFA completion/recovery and passkey login before any session/token is issued.
+  - Revoke all active sessions for a target atomically; define idempotent behavior and preserve session-family replay protections.
   - Never hard-delete by default; Keycloak identities remain separate and read-only.
-  - Do not add mutation routes until schema, audit persistence and authorization/concurrency tests pass.
-- **Validation:** Unit and non-production integration tests for allowed/denied transitions, concurrent last-admin protection, session-family revocation, audit failures and secret redaction.
-- **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, and safe release workflow handling under AUTH-OPS-001.
-- **Risk:** Critical — unsafe mutations can lock out administrators or leave compromised sessions active.
+  - No mutation route/UI control until schema, audit, authorization, concurrency and secret-redaction tests pass.
+- **Validation:** Unit tests plus approved non-production integration tests for role transitions, suspension at every auth path, concurrent last-admin protection, session-family revocation, audit failure rollback and response redaction.
+- **Dependencies:** AUTH-OPS-002, AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B and AUTH-OPS-001.
+- **Risk:** Critical — an incomplete suspension check or non-atomic audit/session mutation can leave compromised sessions active or lock out all administrators.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
-
 ### AUTH-UM-003 — Protected admin users UI (UM-3)
 
 - **Priority/status:** P2 / PARTIALLY DONE — read-only directory and contract regression tests are merged; browser-level keyboard/responsive coverage and all privileged mutation flows remain open.
