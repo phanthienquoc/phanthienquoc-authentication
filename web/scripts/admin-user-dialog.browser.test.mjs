@@ -63,6 +63,7 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
   let currentRole = "ADMIN";
   let adminUsersCalls = 0;
   const protocolErrors = [];
+  const interceptedApiRequests = [];
   let server;
   let chrome;
   let ws;
@@ -155,6 +156,9 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
     async function fulfillPaused(message) {
       const request = message.params.request;
       const path = new URL(request.url).pathname;
+      if (path.startsWith("/auth/") || path.startsWith("/api/admin/users")) {
+        interceptedApiRequests.push(`${request.method} ${path}`);
+      }
       let status = 200;
       let payload;
       if (path === "/auth/refresh") {
@@ -248,7 +252,10 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
         } catch {}
         await delay(100);
       }
-      throw new Error("Timed out waiting for browser state: " + label);
+      throw new Error(
+        "Timed out waiting for browser state: " + label +
+          "\nIntercepted mocked API requests: " + (interceptedApiRequests.join(", ") || "(none)"),
+      );
     }
 
     async function navigate(path) {
