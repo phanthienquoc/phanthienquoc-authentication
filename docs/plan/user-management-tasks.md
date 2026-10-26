@@ -30,20 +30,23 @@
 
 ### AUTH-OPS-002 — Reconcile remaining Supabase migration history and integration status
 
-- **Priority/status:** P1 / IN PROGRESS — two scoped Auth migrations now apply and verify successfully, but three other remote-only migration versions still lack source artifacts and branch metadata still reports `MIGRATIONS_FAILED`.
-- **Evidence:** Supabase project ref `gtqovpusfyyvxpeezxlo`; direct apply successes for `20261026030920 auth_persistence_rpc_contract_reconcile` and `20261026032152 revoke_browser_auth_table_privileges`; read-only `list_migrations`, `pg_proc`/ACL queries and `has_table_privilege` verification. Previous master-push Supabase Preview check [#121371496330](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks) failed with `Remote migration versions not found in local migrations directory`.
-- **Current behavior:** The four source-required RPCs are present with service-role-only EXECUTE grants, and direct browser table privileges are removed from the five legacy Auth tables. The connected branch metadata still reports `MIGRATIONS_FAILED` despite those migration-ledger entries and verified catalog effects. `.env.example` still has a placeholder project ref; the exact runtime URL is not exposed in source. Three remote-only migrations (`20261014024759`, `20261014130516`, `20261014131151`) remain without matching source files.
-- **Desired behavior:** Keep each applied migration represented by its exact SQL artifact and reconcile remote-only history from authoritative artifacts; avoid fabricating migration contents from names or current catalog state.
+- **Priority/status:** P1 / IN PROGRESS — read-only reconciliation is current; environment classification is unresolved and branch metadata remains `MIGRATIONS_FAILED`. No migration or Supabase branch operation was performed by this run.
+- **Evidence:** `list_projects/get_project` returned the project whose ref `gtqovpusfyyvxpeezxlo` is explicitly documented in this roadmap. The project reports `ACTIVE_HEALTHY`, but its only branch is non-persistent `main` (Git branch `master`) with status `MIGRATIONS_FAILED`. Auth `.env.example` has a placeholder; TCE stores `SUPABASE_URL` only in GitHub secrets, and secret values are not visible, so the exact runtime URL-to-ref mapping is not independently confirmed. PR #55's Supabase Preview check is `skipped` because the Git branch is not associated with a Supabase branch and preview-branch creation is disabled; this is not a passing migration check.
+- **Current behavior:** The live ledger includes `20261026030920 auth_persistence_rpc_contract_reconcile`, `20261026032152 revoke_browser_auth_table_privileges`, `20261026035340 auth_admin_audit_events`, `20261026035431 auth_admin_audit_rpc_only_access`, and `20261026040431 auth_server_issued_mfa_login_challenges`. The source for `20261026040431` is on PR #55 and is not on `master`. `public.users` has no status/suspension column. The four core source RPCs, audit RPC and five MFA challenge RPCs are present with fixed `search_path` and EXECUTE limited to `service_role` plus owner `postgres`; browser-role direct grants are absent for the scoped Auth tables. Three remote-only versions (`20261014024759`, `20261014130516`, `20261014131151`) have no source artifact; remote `20261020234922 keycloak_identity_persistence` differs from local `20261014000000_keycloak_identity_persistence.sql`; local `20261012000000_auth_persistence_rpcs.sql` is absent from the remote ledger even though its current RPC contracts exist under later migration history.
+- **Desired behavior:** Keep every migration version represented by authoritative SQL, reconcile remote-only/version-mismatched history without reconstructing files from names or catalog state, and identify an explicitly safe non-production target before any migration-bearing merge/apply.
 - **Acceptance criteria:**
-  - [x] Track the two scoped applied Auth migrations in `supabase/migrations/`.
-  - [x] Verify RPC signatures/ACLs and browser-role table privileges after the respective migrations without reading account rows.
-  - [ ] Find authoritative artifacts/revisions for the three remote-only migration versions in the two authorized repositories or repository history.
-  - [ ] Recheck the Supabase integration outcome after PR #51 merges; classify `MIGRATIONS_FAILED` based on exact evidence rather than status label alone.
-  - [x] Keep changes scoped to Auth tables and preserve the existing service-role client; no branch creation, reset, database data mutation or application release was performed.
-- **Validation:** Supabase `apply_migration` returned success for both versions; post-apply catalog checks verified function signatures, service-role grants and removal of `anon`/`authenticated` SELECT/INSERT/UPDATE/DELETE/TRUNCATE on five Auth tables. Repo CI runs against PR heads remain the source of code validation.
-- **Dependencies:** Authoritative source for the three remote-only versions and exact outcome of the current Supabase GitHub integration.
-- **Risk:** Medium/high — an external integration may continue to report migration-history drift even though these two narrow changes are applied. Do not repair unrelated migration history by guessing.
-- **Links:** [UM roadmap](../user-management-roadmap.md), [RPC-contract migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql), [grant-revocation migration](../../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), [prior Supabase Preview failure](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks).
+  - [x] Recheck current project, branch metadata, migration ledger, relevant table/RPC catalogs and ACLs without reading account rows.
+  - [x] Verify browser-role direct grants are absent from the five legacy Auth tables and no direct grants exist on the audit/challenge tables.
+  - [x] Record the live MFA challenge table/RPC contract and its source location on PR #55.
+  - [ ] Find authoritative artifacts/revisions for the three remote-only migration versions.
+  - [ ] Reconcile the remote/local Keycloak migration version mismatch and the local auth-RPC migration version absent from the ledger.
+  - [ ] Confirm production versus non-production and safe preview/merge behavior before any migration-bearing PR is merged.
+  - [ ] Recheck the historical `42P01` log match after an approved non-production integration test.
+  - [x] No migration apply, Supabase branch creation/reset/merge, production data/schema mutation, or application release was performed by this run.
+- **Validation:** The current read-only catalog confirms `public.users` columns are `id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,created_at,updated_at`; no status/suspension field exists. `auth_record_admin_audit_event` is `SECURITY DEFINER`, fixed `search_path=pg_catalog, public, pg_temp`, and EXECUTE is `postgres,service_role`. The five challenge RPCs are `SECURITY DEFINER`, fixed search path and `postgres/service_role` execute only. Security advisor reports 34 project-wide `rls_enabled_no_policy` findings; no public policy was added. Aggregate logs showed one `auth_rotate_refresh_session` SQLSTATE `42P01` at `2026-10-26T00:32:48Z`, before migration `20261026030920`; no matching later error was returned by the same 24-hour aggregate query.
+- **Dependencies:** Authoritative source for three remote-only versions, version reconciliation, and explicit environment classification.
+- **Risk:** High — `MIGRATIONS_FAILED` and unknown environment make migration-bearing merge unsafe even though current signatures/privileges are present.
+- **Links:** [UM roadmap](../user-management-roadmap.md), [PR #55](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/55), [RPC-contract migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql), [grant-revocation migration](../../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), [MFA challenge migration on PR branch](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/fix/auth-sec-001-server-issued-mfa-challenge/supabase/migrations/20261026040431_auth_server_issued_mfa_login_challenges.sql).
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
@@ -88,21 +91,21 @@
 
 ### AUTH-SEC-003 — Login, refresh and passkey failure-contract regression tests
 
-- **Priority/status:** P1 / IN PR — [replacement PR](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52) carries the tested regression suite onto current `master` after the RPC and grant migrations.
-- **Evidence:** `test/auth-flow-security.spec.ts`; original exact-head test run [auth-service CI #40262203234](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40262203234) passed before being refreshed onto current master.
-- **Current behavior:** Existing Auth flows already normalize login email; withhold session/token/cookie before MFA completion; rotate refresh tokens through a persistence contract; revoke the presented refresh token on logout; clear cookies on refresh errors/reuse; and fail closed for unknown passkeys or missing challenges. Coverage was missing as a dedicated consolidated suite on current master.
-- **Desired behavior:** Keep these failure/credential-delivery contracts regression-tested without making real Supabase calls, reading account rows, or weakening authentication assertions.
+- **Priority/status:** P1 / MERGED — PR #52 merged at `aae24d8adb793ee9ec3201fd5c98c77fb3cf1cbd` from exact head `92b19d78bc3da04b9e1747f30f4df7c897d75b2c`.
+- **Evidence:** `test/auth-flow-security.spec.ts`; exact-head [auth-service CI #40264453765](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40264453765) passed. The Supabase Preview check was skipped because no Supabase branch was associated; it was not a database integration pass.
+- **Current behavior:** Regression coverage for normalized login, withholding sessions/tokens/cookies before MFA, refresh rotation and error-cookie clearing, logout revocation, and passkey failure paths is merged on current `master`.
+- **Desired behavior:** Keep these failure/credential-delivery contracts regression-tested without real Supabase calls or account-row access.
 - **Acceptance criteria:**
   - [x] Cover normalized login and keep refresh token out of JSON.
   - [x] Assert invalid credentials and MFA-pending login do not create a refresh session, issue a JWT or set a cookie.
   - [x] Assert refresh rotation returns access token only, and token reuse/persistence errors clear the HttpOnly refresh cookie.
   - [x] Assert logout revokes the hashed token and clears the cookie.
   - [x] Assert unknown passkey and missing challenge fail before credential update or session issuance.
-  - [ ] Run the suite with all service CI steps on the exact current PR head.
-- **Validation:** The prior branch's exact-head service CI passed `npm test`, typecheck, build and container build at run #40262203234. Replacement branch CI must pass on its own exact head before merge.
-- **Dependencies:** Existing RPC contract reconciliation is merged via PR #50. This test task does not resolve the separate server-issued MFA first-factor challenge tracked by AUTH-SEC-001, nor does it claim live DB integration coverage.
-- **Risk:** Low — test-only change, in-memory mocks, no runtime behavior or database access.
-- **Links:** [roadmap](../user-management-roadmap.md), [PR #49 (superseded source)](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/49), [current PR #52](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52).
+  - [x] Run the suite with all service CI steps on the exact PR head.
+- **Validation:** Exact-head service CI run #40264453765 passed. PR #10 remains open and unchanged (last updated 2026-10-14; separate JWT/cookie contract coverage); it was not merged or modified because it is not part of the agent-authorized work.
+- **Dependencies:** Existing RPC contract reconciliation is merged. This task does not resolve the separate server-issued MFA first-factor challenge tracked by AUTH-SEC-001, nor does it claim live DB integration coverage.
+- **Risk:** Low — test-only runtime scope, in-memory mocks, no database mutation.
+- **Links:** [roadmap](../user-management-roadmap.md), [PR #52](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52), [legacy PR #10](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/10).
 
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
@@ -137,29 +140,29 @@
 
 ### AUTH-UM-001B — Privileged audit persistence (UM-1 foundation)
 
-- **Priority/status:** P1 / IN PR — database table/RPC applied and verified at ledger versions `20261026035340 auth_admin_audit_events` and `20261026035431 auth_admin_audit_rpc_only_access`; source SQL and typed writer are on the current-master branch [PR #54](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/54).
-- **Evidence:** Pre-apply catalog found no audit table/RPC. Post-apply `list_migrations`, `to_regclass`, `to_regprocedure`, `pg_proc` ACL, and `has_table_privilege` checks confirm the table/RPC, signatures and grants. RPC is `SECURITY DEFINER` with fixed search_path; EXECUTE is granted to `service_role` and owner `postgres`. The audit table is RLS-enabled with no policies; `anon`, `authenticated`, and `service_role` have no direct table privileges.
-- **Current behavior:** Server-side append path exists in the connected database. `src/users/admin-audit.service.ts` forwards a typed allowlist to the RPC; the RPC validates action/outcome/reason/request-id fields and successful events require an existing legacy `ADMIN` actor. Existing User Management routes remain GET-only; this slice adds no role/status/session mutation endpoints.
-- **Desired behavior:** Append-only audit events for eventual successful/denied/failed legacy-admin operations, with actor/target IDs, action/outcome, timestamp, safe before/after role/status, enum reason code and validated request ID. Keep Keycloak identities separate.
+- **Priority/status:** P1 / MERGED — PR #54 merged at `533fd4f6809c187759231d109fe7ac05239271c9` from exact head `e74500d2609364fcf30fb3c2ad598b3ab4613d55`.
+- **Evidence:** Live ledger versions `20261026035340 auth_admin_audit_events` and `20261026035431 auth_admin_audit_rpc_only_access`; post-apply `list_migrations`, `to_regclass`, `to_regprocedure`, `pg_proc` ACL and `has_table_privilege` checks. `auth_record_admin_audit_event` is `SECURITY DEFINER` with fixed `search_path=pg_catalog, public, pg_temp`; EXECUTE is limited to `service_role` and owner `postgres`.
+- **Current behavior:** The server-side append path and typed writer are merged. The table is RLS-enabled with no policies and no direct privileges for `anon`, `authenticated`, or `service_role`; the validated RPC is the application write path. User Management routes remain GET-only.
+- **Desired behavior:** Append-only audit events for eventual successful/denied/failed legacy-admin operations, with safe allowlisted metadata and no secrets. Keep Keycloak identities separate.
 - **Acceptance criteria:**
-  - [x] Create an audit table with constrained actions/outcomes, safe role/status fields, no generic JSON/free-form metadata, and chronology indexes.
+  - [x] Create a constrained audit table with safe role/status fields and chronology indexes.
   - [x] Expose validated writes through a SECURITY DEFINER RPC with fixed search_path and service_role-only EXECUTE.
   - [x] Revoke direct table privileges from PUBLIC/anon/authenticated/service_role; preserve postgres owner access.
   - [x] Add a typed writer that forwards only allowlisted metadata and normalizes DB errors.
-  - [x] Unit tests verify extra secret-like fields are not forwarded and RPC/transport errors are normalized.
-  - [ ] Run exact-head CI and inspect the migration/source diff after CI completes.
-  - [ ] Add non-production end-to-end integration coverage for audit success/failure and consistency with eventual mutations; no fake event was inserted just to test storage.
-  - [ ] Prove audit writes are atomic with each eventual mutation before creating mutation routes; no route is added in this slice.
-- **Validation:** Supabase migrations `20261026035340` and `20261026035431` returned success. Post-apply catalog confirms audit table + RPC, RLS/no policy, function ACL `postgres=X/postgres,service_role=X/postgres`, and no direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE for anon/authenticated/service_role. No account rows were read or changed. CI must pass on the exact PR #54 head.
-- **Dependencies:** AUTH-OPS-002 migration-history reconciliation; AUTH-UM-002 remains gated until status schema, suspension enforcement, authorization/concurrency checks and atomic audit behavior are implemented and tested.
+  - [x] Unit tests verify secret-like extra fields are not forwarded and RPC/transport errors are normalized.
+  - [x] Exact-head service CI and post-merge service CI passed.
+  - [ ] Add non-production end-to-end integration coverage for audit success/failure and consistency with eventual mutations.
+  - [ ] Prove audit writes are atomic with each eventual mutation before creating mutation routes.
+- **Validation:** Exact-head CI [#40266935252](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40266935252) and post-merge CI [#40267173209](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40267173209) passed. Supabase Preview was skipped because no branch was associated and preview-branch creation is disabled; this is not non-production integration evidence. No account rows were read or changed by this run.
+- **Dependencies:** AUTH-OPS-002 migration-history reconciliation; AUTH-UM-002 remains blocked until status schema, suspension enforcement, authorization/concurrency checks and atomic audit behavior are implemented and tested.
 - **Risk:** High — audit records must not be forgeable or contain secrets. The application role cannot write/read the table directly and has only EXECUTE on the validated RPC.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [audit schema/RPC migration](../../supabase/migrations/20261026035340_auth_admin_audit_events.sql), [RPC-only grants migration](../../supabase/migrations/20261026035431_auth_admin_audit_rpc_only_access.sql), [PR #54](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/54).
 
 ### AUTH-UM-002 — Legacy account lifecycle API (UM-2)
 
-- **Priority/status:** P1 / PARTIALLY DONE — read-only list/detail exists; mutations remain BLOCKED by AUTH-UM-000 and AUTH-UM-001B.
-- **Evidence:** `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/mfa.service.ts`, `src/auth/passkey.service.ts`, `supabase/migrations/`.
-- **Current behavior:** Read-only list/detail endpoints are merged. The live schema recorded in the roadmap has no account-status column or audit table; current session revocation methods target an individual refresh token/session, not all active sessions by user. Role/status/session mutation endpoints are not implemented.
+- **Priority/status:** P1 / BLOCKED — read-only list/detail and the audit writer are merged, but lifecycle mutations remain blocked by the missing status schema, unclassified Supabase environment, and absent mutation authorization/concurrency/atomic-audit tests.
+- **Evidence:** `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/mfa.service.ts`, `src/auth/passkey.service.ts`, live `public.users` catalog and PR #54 audit persistence.
+- **Current behavior:** `public.users` has `id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,created_at,updated_at`; no status/suspension column exists. Login, refresh, MFA and passkey paths therefore have no status gate. Session revocation currently targets an individual refresh token/session, not all active sessions for a user. No role/status/session mutation endpoint exists.
 - **Desired behavior:** Audited role change within policy, reversible suspension/reactivation, and revoke-all-sessions for legacy NestJS accounts only.
 - **Acceptance criteria:**
   - Every mutation is protected by current database-backed admin authorization and an audit record.
@@ -167,8 +170,9 @@
   - Suspension and revocation semantics are atomic/idempotent and documented.
   - Never hard-delete by default; Keycloak identities remain separate and read-only.
   - Do not add mutation routes until schema, audit persistence and authorization/concurrency tests pass.
-- **Validation:** Unit and non-production integration tests for allowed/denied transitions, concurrent last-admin protection, session-family revocation, audit failures and secret redaction.
-- **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, and safe release workflow handling under AUTH-OPS-001.
+  - [x] Keep mutation routes absent while these gates remain unmet.
+- **Validation:** No mutation endpoint was added and no account rows were read/changed in this run. Unit and approved non-production integration tests are still required for allowed/denied transitions, concurrent last-admin protection, session-family revocation, audit failures and secret redaction.
+- **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, AUTH-SEC-001, and safe release workflow handling under AUTH-OPS-001; explicit non-production target confirmation.
 - **Risk:** Critical — unsafe mutations can lock out administrators or leave compromised sessions active.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
@@ -223,25 +227,27 @@
 
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
-- **Priority/status:** P1 / IN PR — the challenge schema/RPC migration was applied and verified at ledger version `20261026040431 auth_server_issued_mfa_login_challenges`; code, DTO, web state and tests are on [the dedicated branch](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/fix/auth-sec-001-server-issued-mfa-challenge).
-- **Evidence:** `src/auth/auth.module.ts`, `src/auth/auth.controller.ts`, `src/auth/dto/mfa-login.dto.ts`, `src/auth/auth.service.ts`, `src/auth/passkey.service.ts`, `src/auth/auth.repository.ts`, and web auth store/API. The duplicate `src/auth/mfa.controller.ts` was removed because it was not registered and contained the old userId-based completion path.
-- **Current behavior (before this slice):** Registered MFA login/recovery accepted `userId + code`; password/passkey returned `mfaRequired + userId`. Browser-supplied identity was being used to select the MFA target account without a server-issued challenge proving first factor.
-- **Current behavior (after this slice):** Password and passkey MFA now issue a cryptographically random 32-byte base64url challenge token, store only its SHA-256 hash, and return the raw token once with a 300-second TTL. TOTP completion validates the challenge and atomically consumes it after successful code verification. Recovery completion atomically consumes both challenge and one-time recovery code. Challenge attempts are locked after five failures. The web store keeps the pending token only in memory and sends `challengeToken` (never `userId`) to the completion API.
+- **Priority/status:** P1 / IN PR #55 — server-issued challenge code/tests are on the dedicated branch. Code/test head `1c15f82eabe639d177f2c6a135414b484593b099` passed auth-service and auth-web CI; this docs commit changes the head, so final exact-head checks must pass again. Merge is blocked until the connected Supabase target is explicitly confirmed non-production and safe.
+- **Evidence:** `src/auth/auth.controller.ts`, `src/auth/dto/mfa-login.dto.ts`, `src/auth/auth.service.ts`, `src/auth/passkey.service.ts`, `src/auth/auth.repository.ts`, web auth store/API, migration `20261026040431`, and focused tests in `test/auth-mfa-challenge.spec.ts`, `test/auth-mfa-challenge.repository.spec.ts`, `test/passkey-mfa-challenge.spec.ts`, `test/auth-flow-security.spec.ts` and `test/auth.repository.ready.spec.ts`.
+- **Current behavior (master before this PR):** Registered MFA completion accepts `userId + code`; password/passkey return `mfaRequired + userId`. Browser-supplied identity could select the MFA target account without a server-issued challenge.
+- **Current behavior (PR #55):** Password and passkey first-factor success share `AuthService.beginMfaLogin()`, issuing a cryptographically random 32-byte base64url challenge token and storing only its SHA-256 hash with a 300-second TTL. TOTP completion validates then atomically consumes the challenge; recovery uses one RPC transaction to consume both challenge and recovery code. Five failed attempts lock the challenge. Web state holds the raw token only in memory and sends `challengeToken`, never `userId`. The unregistered duplicate MFA controller was removed.
 - **Desired behavior:** One-time, short-lived server challenge bound to the correct legacy account and successful password/passkey first factor; bounded attempts and replay protection shared across TOTP and recovery.
 - **Acceptance criteria:**
-  - [x] MFA cannot complete for a user without a prior server-validated first factor; completion DTOs do not accept `userId`.
-  - [x] Challenge token is cryptographically random, expires in 5 minutes, only its SHA-256 hash is stored, and the raw token is held client-side in memory only.
+  - [x] Completion DTOs do not accept `userId`; a prior server-validated first factor is required.
+  - [x] Challenge token is cryptographically random, expires in 5 minutes, only its SHA-256 hash is stored, and raw token is held in memory only.
   - [x] Password and passkey MFA share the same challenge issuance contract.
   - [x] TOTP challenge consumption is atomic and one-time; recovery code + challenge are consumed in one database transaction.
-  - [x] Five failed attempts lock the challenge; missing/expired/replayed challenges fail closed with generic errors.
-  - [x] New table has RLS enabled, no direct table grants (including service_role), and the five SECURITY DEFINER RPCs have fixed search_path and EXECUTE only for service_role/owner postgres.
-  - [x] Remove the unregistered duplicate `MfaController` rather than registering a second route implementation.
-  - [ ] Add focused controller/RPC adapter tests for failure attempts, concurrent replay and recovery atomicity; exact-head CI must pass before merge.
+  - [x] SQL RPC enforces five failed attempts; missing/expired/replayed and cross-account consume mismatches fail closed.
+  - [x] New table has RLS enabled, no direct table grants (including service_role), and five SECURITY DEFINER RPCs have fixed search_path and EXECUTE only for service_role/owner postgres.
+  - [x] Remove the unregistered duplicate `MfaController`.
+  - [x] Add controller, RPC-adapter, passkey-parity, concurrent-replay, recovery-atomicity and cross-account mismatch tests.
+  - [ ] Final exact-head service/web CI must pass after this docs update.
   - [ ] Verify gateway-level request-rate limiting separately before rollout.
-- **Validation:** Supabase apply succeeded for `20261026040431 auth_server_issued_mfa_login_challenges`; read-only catalog checks verified the table columns and all five function signatures/SECURITY DEFINER/ACLs. Post-apply direct table privileges are false for anon/authenticated/service_role. Login flow mock regression test now asserts `challengeToken` and no `userId`, and that no JWT/refresh cookie is issued before MFA. Exact-head GitHub CI remains pending.
-- **Dependencies:** AUTH-UM-000 RPC contract migration is merged. This slice does not implement suspension/status checks; UM-2 must still enforce status across login, refresh, MFA and passkey. Do not add mutation endpoints until audit/concurrency tests pass.
-- **Risk:** High — MFA is a security boundary. The challenge token is opaque, one-time and short-lived; recovery path is atomic, but exact-head CI and integration tests are required before release.
-- **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [Roadmap](../user-management-roadmap.md), [MFA challenge migration](../../supabase/migrations/20261026040431_auth_server_issued_mfa_login_challenges.sql), [AuthModule](../../src/auth/auth.module.ts), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
+  - [ ] Verify five-attempt lockout, challenge expiry and recovery transaction against an explicitly approved non-production target; no live mutating RPC was executed by this run.
+- **Validation:** The code/test head passed auth-service CI [#40268423566](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40268423566) and auth-web CI [#40268423514](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40268423514), plus push service CI [#40268418023](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40268418023). This docs-only commit triggers a fresh exact-head run. Supabase Preview is skipped because no Supabase branch is associated and preview-branch creation is disabled. This run performed no migration apply, branch operation, schema/data mutation or live challenge/recovery RPC call.
+- **Dependencies:** AUTH-UM-000 RPC contract migration is merged. UM-2 must still enforce status across login, refresh, MFA and passkey once an approved status schema exists. Do not add mutation endpoints until authorization/audit/concurrency tests pass.
+- **Risk:** High — MFA is a security boundary. The challenge token is opaque, one-time and short-lived; integration/rate-limit validation remains gated.
+- **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [PR #55](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/55), [Roadmap](../user-management-roadmap.md), [MFA challenge migration](../../supabase/migrations/20261026040431_auth_server_issued_mfa_login_challenges.sql).
 
 ### AUTH-UM-001A2 — Normalize thrown admin role-lookup failures
 
