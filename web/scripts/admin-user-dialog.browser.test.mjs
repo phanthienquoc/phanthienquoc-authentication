@@ -311,13 +311,19 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
         viewport.name + " dialog initial focus",
       );
 
-      const metrics = await evaluate("(() => { const dialog = document.querySelector('[role=\"dialog\"]'); const rect = dialog.getBoundingClientRect(); return { width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, text: dialog.innerText }; })()");
+      const metrics = await evaluate("(() => { const dialog = document.querySelector('[role=\"dialog\"]'); const rect = dialog.getBoundingClientRect(); return { width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, clientHeight: dialog.clientHeight, scrollHeight: dialog.scrollHeight, overflowY: getComputedStyle(dialog).overflowY, text: dialog.innerText }; })()");
       assert.equal(metrics.width, viewport.width, viewport.name + " viewport width");
       assert.ok(metrics.scrollWidth <= viewport.width + 1, viewport.name + " page must not overflow horizontally");
       assert.ok(
         metrics.left >= -1 && metrics.top >= -1 && metrics.right <= viewport.width + 1 && metrics.bottom <= viewport.height + 1,
         viewport.name + " dialog must stay within the viewport: " + JSON.stringify(metrics),
       );
+      if (viewport.name === "short landscape phone") {
+        assert.equal(metrics.overflowY, "auto", "short landscape dialog content must be scrollable");
+        assert.ok(metrics.scrollHeight > metrics.clientHeight, "short landscape dialog must constrain content height and expose internal scrolling");
+        const reachedBottom = await evaluate("(() => { const dialog = document.querySelector('[role=\\\"dialog\\\"]'); dialog.scrollTop = dialog.scrollHeight; return dialog.scrollTop > 0 && dialog.scrollTop + dialog.clientHeight >= dialog.scrollHeight - 1; })()");
+        assert.equal(reachedBottom, true, "short landscape dialog content must be reachable by scrolling");
+      }
       assert.match(metrics.text, /alice@example\.com/);
       assert.match(metrics.text, /Application role/);
       assert.doesNotMatch(metrics.text, /password_hash|mfa_secret_encrypted|refresh token|recovery code|private passkey/i);
