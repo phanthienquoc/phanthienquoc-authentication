@@ -251,6 +251,7 @@
   - [ ] Exact-head web CI passes; confirm the resulting PR #43 head reruns successfully before marking browser verification complete.
   - [ ] Keep PR #43 unmerged until its checks pass and the separate Supabase GitHub integration merge target is verified safe.
 - **Validation:** GitHub Actions is the test runner; no local execution or real-account test is claimed. No database/schema/migration, production deployment, or account mutation.
+- **Exact-head status note (2026-10-26):** PR #45 is open at head `2840a5e07093152c6cafc0047776cca4faba28a1` and targets the browser-test branch used by PR #43. The available workflow-run lookup shows no pull-request-triggered run for this exact head; the workflows' PR trigger targets `master`, while this stacked PR targets a feature branch. Do not treat this as a pass. Verify the resulting PR #43 head with web CI before marking browser verification complete or merging to `master`.
 - **Dependencies:** AUTH-UM-003C browser contract harness; no database/audit dependency.
 - **Risk:** Low — Next.js development-origin allowlist plus failure diagnostics only; no production auth or API contract changes.
 - **Links:** [PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [web CI failure](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921).
