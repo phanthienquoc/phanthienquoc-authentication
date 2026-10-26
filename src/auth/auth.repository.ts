@@ -64,6 +64,7 @@ export class AuthRepository {
       '/rpc/auth_admin_update_user_role',
       '/rpc/auth_admin_update_user_status',
       '/rpc/auth_admin_revoke_user_sessions',
+      '/rpc/auth_record_admin_audit_event',
     ] as const;
     if (requiredRpcPaths.some((path) => !paths.has(path))) {
       this.persistenceError();

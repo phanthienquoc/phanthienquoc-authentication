@@ -16,6 +16,7 @@ const requiredRpcPaths = [
   '/rpc/auth_admin_update_user_role',
   '/rpc/auth_admin_update_user_status',
   '/rpc/auth_admin_revoke_user_sessions',
+  '/rpc/auth_record_admin_audit_event',
 ] as const;
 
 function createSupabase(paths: readonly string[]) {
@@ -43,7 +44,20 @@ describe('AuthRepository.ready RPC contract', () => {
   });
 
   it('fails readiness when a required RPC is absent', async () => {
-    const { supabase } = createSupabase(requiredRpcPaths.slice(0, -1));
+    const paths = requiredRpcPaths.filter(
+      (path) => path !== '/rpc/auth_rotate_refresh_session',
+    );
+    const { supabase } = createSupabase(paths);
+    const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
+
+    await expect(repository.ready()).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('fails readiness when the admin audit RPC is absent', async () => {
+    const paths = requiredRpcPaths.filter(
+      (path) => path !== '/rpc/auth_record_admin_audit_event',
+    );
+    const { supabase } = createSupabase(paths);
     const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
 
     await expect(repository.ready()).rejects.toBeInstanceOf(ServiceUnavailableException);
