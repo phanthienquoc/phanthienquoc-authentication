@@ -33,6 +33,37 @@ async function createHarness(options: HarnessOptions = {}) {
   };
   const from = jest.fn().mockReturnValue(userQuery);
   const rpc = jest.fn(async (name: string) => {
+    if (name === 'auth_admin_update_user_role') {
+      return {
+        data: {
+          status: 'updated',
+          user: {
+            id: TARGET_ID,
+            email: 'target@example.com',
+            role: 'ADMIN',
+            status: 'ACTIVE',
+            mfa_enabled: false,
+            password_hash: 'must-not-escape-password-hash',
+          },
+        },
+        error: null,
+      };
+    }
+    if (name === 'auth_admin_revoke_user_sessions') {
+      return {
+        data: {
+          status: 'revoked',
+          user: {
+            id: TARGET_ID,
+            email: 'target@example.com',
+            password_hash: 'must-not-escape-password-hash',
+            token_hash: 'must-not-escape-token-hash',
+          },
+          revoked_sessions: 2,
+        },
+        error: null,
+      };
+    }
     if (name === 'auth_admin_update_user_status') {
       return {
         data: {
@@ -264,6 +295,76 @@ describe('Admin user lifecycle HTTP contract', () => {
         p_request_id: REQUEST_ID,
       }));
       expect(harness.rpc.mock.calls.some(([name]) => name === 'auth_admin_update_user_status')).toBe(false);
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('routes role changes through the protected HTTP boundary with server-derived actor identity', async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.url}/api/admin/users/${TARGET_ID}/role`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bearer synthetic-test-token',
+          'Content-Type': 'application/json',
+          'X-Request-Id': REQUEST_ID,
+        },
+        body: JSON.stringify({ role: 'ADMIN', reasonCode: 'SECURITY_REVIEW' }),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        result: 'updated',
+        user: {
+          id: TARGET_ID,
+          email: 'target@example.com',
+          role: 'ADMIN',
+          status: 'ACTIVE',
+          mfaEnabled: false,
+        },
+      });
+      expect(harness.rpc).toHaveBeenCalledTimes(1);
+      expect(harness.rpc).toHaveBeenCalledWith('auth_admin_update_user_role', {
+        p_actor_user_id: ADMIN_ID,
+        p_target_user_id: TARGET_ID,
+        p_new_role: 'ADMIN',
+        p_reason_code: 'SECURITY_REVIEW',
+        p_request_id: REQUEST_ID,
+      });
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('routes session revocation through the protected HTTP boundary and redacts token material', async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.url}/api/admin/users/${TARGET_ID}/revoke-sessions`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer synthetic-test-token',
+          'Content-Type': 'application/json',
+          'X-Request-Id': REQUEST_ID,
+        },
+        body: JSON.stringify({ reasonCode: 'ADMIN_REQUEST' }),
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload).toEqual({
+        result: 'revoked',
+        user: { id: TARGET_ID, email: 'target@example.com' },
+        revokedSessions: 2,
+      });
+      expect(harness.rpc).toHaveBeenCalledTimes(1);
+      expect(harness.rpc).toHaveBeenCalledWith('auth_admin_revoke_user_sessions', {
+        p_actor_user_id: ADMIN_ID,
+        p_target_user_id: TARGET_ID,
+        p_reason_code: 'ADMIN_REQUEST',
+        p_request_id: REQUEST_ID,
+      });
+      const serialized = JSON.stringify(payload);
+      expect(serialized).not.toContain('must-not-escape-password-hash');
+      expect(serialized).not.toContain('must-not-escape-token-hash');
     } finally {
       await harness.app.close();
     }
