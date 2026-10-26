@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 19:13 +07:00
+**Last audited:** 2026-10-26 (latest read-only contract recheck)
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -12,7 +12,7 @@
 - This file is the canonical task queue. The roadmap contains architecture and phase definitions only.
 - Every task records evidence, current/desired behavior, acceptance criteria, validation, dependencies, risk and source links.
 - Use one descriptive branch and PR per dependency-safe slice; never commit directly to `master`.
-- Before every merge, inspect push-triggered workflows and the exact side effects. Do not merge a PR that would publish/promote/deploy to production unless the user separately authorizes that exact side effect. Documentation-only changes are not exempt.
+- Before every merge, inspect repository workflows and external integration side effects. Do not merge if a PR could trigger production publish/promotion/deploy or a Supabase migration unless that exact effect is separately authorized and the target is authoritatively verified safe; docs-only changes are not exempt.
 - Squash-merge only after exact-head required checks pass, mergeability and acceptance criteria are verified, and the diff has been inspected for security/regressions.
 - **Migration authorization boundary (current instruction, 2026-10-26):** The scoped RPC-contract, Auth-table grant, MFA, status and lifecycle migrations already present in the ledger are historical operations. The current task requires separate authorization for each exact future migration/apply operation; prior broad routine-migration wording is not standing permission. Do not create a Supabase branch without `get_cost` and explicit cost approval. No resets/deletes/branch merges, live account-data mutations, function deployment, production release or unrelated schema changes are authorized. A skipped check is not a passed test.
 
@@ -145,7 +145,7 @@
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
-- **Priority/status:** P0 / PARTIALLY RECONCILED — live schema, current RPC signatures/ACLs and lifecycle source parity are verified; remote-only migration provenance, Keycloak version mismatch, and runtime/environment mapping remain unresolved.
+- **Priority/status:** P0 / BLOCKED — migration provenance only. Live schema, current RPC signatures/ACLs and lifecycle source parity are verified. This blocker does not block independent UM-1–UM-4 source/test slices; do not reconstruct, replay or overwrite the remote ledger to force a green status.
 - **Evidence:** Read-only `list_projects/get_project`, `list_tables(verbose=true)`, `list_migrations`, `pg_proc`/ACL SQL, advisors/logs; `src/auth/auth.repository.ts`, `src/auth/passkey.repository.ts`, `src/users/users-management.service.ts`, `src/users/admin-audit.service.ts`, `src/db/supabase.client.ts`; tracked `supabase/migrations/`.
 - **Current behavior:** `public.users.status` exists as non-null text default `ACTIVE`. Live `auth_create_refresh_session`, `auth_rotate_refresh_session`, recovery/passkey/MFA challenge routines, audit RPC and the three lifecycle RPCs have expected source contracts. All inspected Auth RPCs are SECURITY DEFINER with fixed search paths and EXECUTE limited to `service_role` plus owner `postgres`; browser roles have no direct Auth-table grants. The three lifecycle bodies match source. Exact remote versions `20261014024759 restrict_auth_rpc_execution`, `20261014130516 keycloak_runtime_schema`, and `20261014131151 keycloak_runtime_login_role` have no corresponding exact source file in either authorized repository. Local `20261012000000_auth_persistence_rpcs.sql` is absent from the remote ledger, and local `20261014000000_keycloak_identity_persistence.sql` does not match the remote version prefix `20261020234922` despite sharing the migration name. Do not reconstruct or replay historical SQL from names/catalog state.
 - **Desired behavior:** Keep database, migration source and application RPC argument/result contracts synchronized. Preserve legacy NestJS accounts separately from Keycloak identities; do not add direct Keycloak-schema access or an Admin API adapter without separate approval.
@@ -491,3 +491,26 @@
 - **Validation:** PR #68 exact head `dcf1a4d822758943e093cf6cd95b865cdf81bb1a` passed [Auth Service CI #40313090236](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40313090236). PR #70 exact head `d769ceb23b14e1b160638320f56d088cdcd1f28e` passed [Auth Service CI #40305791232](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40305791232).
 - **Open PRs:** #68 (roadmap/queue evidence) and #70 (suspension regression tests) are open/draft and mergeable. Do not merge solely on green CI: the connected GitHub/Supabase repository/deploy target remains unverified, and a connected integration can run migration steps. No exact future migration operation is authorized by this run.
 - **Risk/dependencies:** Medium — source contract is covered, but live integration/environment provenance is unresolved. No Supabase branch was created; no account rows or sensitive auth material were read; no migration/schema/data write, function deployment, or release occurred.
+
+
+### AUTH-OPS-007 — Verify Supabase GitHub deployment binding and merge effects
+
+- **Priority/status:** P0 / BLOCKED — pre-merge side-effect gate.
+- **Evidence:** Read-only project/branch/ledger inspection; Auth ci.yml and release.yml; current TCE wf-03-tce-production-deploy.yml; placeholder runtime config; current Supabase branching documentation; bounded migration-runner logs.
+- **Current behavior:** Auth CI is validation-only on push/PR; Auth release and TCE WF-03 are workflow_dispatch-only. The authorized tool surface does not expose the Supabase GitHub repository/branch binding or deployment toggle. Logs contain recurring missing-local-migration-version errors, including 2026-10-26T14:55:49.947009Z; proximity to a merge is correlation, not proof of causation.
+- **Desired behavior:** Identify the exact connected repository, target branch, environment and deployment/migration behavior before merging any PR that could trigger it.
+- **Acceptance criteria:** [x] Re-identify project and branch; [x] inspect both in-scope repositories' relevant workflow triggers; [x] search current official Supabase deployment/branching docs; [x] record bounded log evidence without claiming causation; [ ] verify the authoritative integration settings; [ ] confirm any exact write/deploy effect is separately authorized and safe.
+- **Validation:** Read-only only; no schema/data write, migration apply, Supabase branch operation, Edge Function deployment, release or workflow dispatch.
+- **Dependencies:** Authoritative access to Supabase GitHub integration settings; AUTH-UM-000 remains a separate migration-provenance diagnostic.
+- **Risk:** Critical — an ordinary merge may invoke a database migration workflow despite a docs/test-only diff.
+- **Links:** [Supabase Branching](https://supabase.com/docs/guides/deployment/branching), [Auth PR #74](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/74).
+
+## Read-only contract recheck — 2026-10-26 (latest run)
+
+- **Project/branch:** The sole project is gtqovpusfyyvxpeezxlo (ap-southeast-1, PostgreSQL 17.6.1, API ACTIVE_HEALTHY). Only non-persistent default main / Git master is listed; branch status is MIGRATIONS_FAILED.
+- **Schema/RPC contract:** Verbose table inspection and read-only catalog SQL confirm public.users.status NOT NULL DEFAULT ACTIVE, default role USER, and 14 current public auth_% RPCs. All 14 are SECURITY DEFINER with fixed search_path=pg_catalog, public, pg_temp; inspected Auth tables have no direct browser-role table grants/policies. No account rows or sensitive auth material were read.
+- **Migration history:** Ledger has 78 entries through 20261026122224 revoke_public_cashout_event_access. Remote-only 20261014024759, 20261014130516, 20261014131151, local-only 20261012000000_auth_persistence_rpcs.sql, and Keycloak version mismatch 20261014000000 vs 20261020234922 remain unresolved.
+- **Advisors:** Security: 35 project-wide RLS-enabled/no-policy findings, one SECURITY DEFINER view, eight mutable-search-path functions, 42 GraphQL-exposure findings per browser role, leaked-password protection disabled. Performance: 15 unindexed foreign keys, one table missing a primary key, 134 unused indexes. No unrelated schema remediation was attempted.
+- **Bounded logs:** Missing-local-migration-version errors observed at 2026-10-26T14:55:49.947009Z, 14:12:48.439747Z, 12:35:12.429021Z, and 12:34:57.206538Z. These do not prove which integration or commit caused the runs.
+- **UM-4:** PR #68 and #70 are merged. The HTTP-boundary test in this PR uses a real Nest HTTP pipeline with a mocked Supabase client; it is not live database/session/MFA/passkey integration. PR #74's prior head 1d990e26b191f511ff11568efb3d10b0ad142772 passed Auth Service CI #40350732344, but this clean replacement head requires fresh CI.
+- **Decision:** Migration provenance is a separate diagnostic and does not block independent source/test work. Keep the replacement PR open until AUTH-OPS-007 is resolved; no database/schema/data mutation, migration apply, branch operation, Edge Function deployment, production release or trading/order action occurred.
