@@ -12,6 +12,7 @@ const requiredRpcPaths = [
   '/rpc/auth_record_mfa_login_failure',
   '/rpc/auth_consume_mfa_login_challenge',
   '/rpc/auth_consume_mfa_login_recovery',
+  '/rpc/auth_create_refresh_session',
 ] as const;
 
 function createSupabase(paths: readonly string[]) {

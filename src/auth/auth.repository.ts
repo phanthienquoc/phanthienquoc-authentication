@@ -60,6 +60,7 @@ export class AuthRepository {
       '/rpc/auth_record_mfa_login_failure',
       '/rpc/auth_consume_mfa_login_challenge',
       '/rpc/auth_consume_mfa_login_recovery',
+      '/rpc/auth_create_refresh_session',
     ] as const;
     if (requiredRpcPaths.some((path) => !paths.has(path))) {
       this.persistenceError();
@@ -169,12 +170,17 @@ export class AuthRepository {
     sessionId: string; userId: string; familyId: string; tokenHash: string;
     expiresAt: Date; ip?: string; userAgent?: string;
   }) {
-    const { error } = await this.supabase.db.from('refresh_sessions').insert({
-      id: input.sessionId, user_id: input.userId, token_hash: input.tokenHash,
-      family_id: input.familyId, expires_at: input.expiresAt.toISOString(),
-      ip: input.ip ?? null, user_agent: input.userAgent ?? null,
+    const { data, error } = await this.supabase.db.rpc('auth_create_refresh_session', {
+      p_session_id: input.sessionId,
+      p_user_id: input.userId,
+      p_family_id: input.familyId,
+      p_token_hash: input.tokenHash,
+      p_expires_at: input.expiresAt.toISOString(),
+      p_ip: input.ip ?? null,
+      p_user_agent: input.userAgent ?? null,
     });
     if (error) this.persistenceError();
+    if (data !== true) throw new UnauthorizedException('Invalid credentials');
   }
 
   async findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSession | null> {

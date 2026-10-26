@@ -26,6 +26,42 @@ create index if not exists users_active_admin_idx
   on public.users (id)
   where role = 'ADMIN' and status = 'ACTIVE';
 
+create or replace function public.auth_create_refresh_session(
+  p_session_id uuid,
+  p_user_id uuid,
+  p_family_id uuid,
+  p_token_hash text,
+  p_expires_at timestamptz,
+  p_ip text,
+  p_user_agent text
+) returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $
+declare
+  v_status text;
+begin
+  select u.status
+  into v_status
+  from public.users u
+  where u.id = p_user_id
+  for update;
+
+  if not found or v_status <> 'ACTIVE' then
+    return false;
+  end if;
+
+  insert into public.refresh_sessions (
+    id, user_id, family_id, token_hash, expires_at, ip, user_agent
+  ) values (
+    p_session_id, p_user_id, p_family_id, p_token_hash, p_expires_at, p_ip, p_user_agent
+  );
+
+  return true;
+end;
+$;
+
 create or replace function public.auth_replace_mfa_recovery_codes(
   p_user_id uuid,
   p_code_hashes text[]
@@ -427,6 +463,7 @@ begin
 end;
 $$;
 
+revoke all on function public.auth_create_refresh_session(uuid, uuid, uuid, text, timestamptz, text, text) from public, anon, authenticated;
 revoke all on function public.auth_replace_mfa_recovery_codes(uuid, text[]) from public, anon, authenticated;
 revoke all on function public.auth_consume_mfa_recovery_code(uuid, text) from public, anon, authenticated;
 revoke all on function public.auth_consume_passkey_challenge(text, text) from public, anon, authenticated;
@@ -437,6 +474,7 @@ revoke all on function public.auth_record_mfa_login_failure(text) from public, a
 revoke all on function public.auth_consume_mfa_login_challenge(text) from public, anon, authenticated;
 revoke all on function public.auth_consume_mfa_login_recovery(text, text) from public, anon, authenticated;
 
+grant execute on function public.auth_create_refresh_session(uuid, uuid, uuid, text, timestamptz, text, text) to service_role;
 grant execute on function public.auth_replace_mfa_recovery_codes(uuid, text[]) to service_role;
 grant execute on function public.auth_consume_mfa_recovery_code(uuid, text) to service_role;
 grant execute on function public.auth_consume_passkey_challenge(text, text) to service_role;
