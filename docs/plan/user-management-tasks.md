@@ -537,8 +537,8 @@
   - [x] Add a regression test with a synthetic `SUSPENDED` account.
   - [x] Assert the Keycloak exchange rejects with `UnauthorizedException`.
   - [x] Assert `issueLoginForUser` is not called.
-  - [ ] Recheck Auth Service CI on the exact updated PR head before considering the test slice complete.
-- **Validation:** Source-level only. No Keycloak token, live account, Supabase write, session creation, migration, deployment, or production release is used by the test. Existing Auth Service CI on the prior PR #75 head passed run [#40370364354](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40370364354); the updated head must receive a fresh result.
+  - [x] Auth Service CI passed on the exact updated code/test head `d4cf0b74e4512c7e1720fb43e1357183d2287b9d` in [run #40378354168](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40378354168) — tests, typecheck, build, and container build. Subsequent task-documentation-only commits do not alter this test or application source.
+- **Validation:** Source-level only. No Keycloak token, live account, Supabase write, session creation, migration, deployment, or production release is used by the test. Exact code/test head `d4cf0b74e4512c7e1720fb43e1357183d2287b9d` passed Auth Service CI [#40378354168](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40378354168) — tests, typecheck, build, and container build. Later commits on this PR only refresh the task Markdown evidence.
 - **Dependencies:** Existing UM-2 suspension enforcement and AUTH-UM-004A; does not depend on live Supabase integration.
 - **Risk:** Low — test-only regression coverage; no runtime behavior change.
 - **Links:** [PR #75](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/75), [AuthService Keycloak session exchange](../test/auth-keycloak-session.spec.ts).
