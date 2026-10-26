@@ -106,7 +106,7 @@
   - Mutation controls are not shown until matching protected API routes and tests exist.
   - UI role checks remain supplementary; server-side authorization is authoritative.
 - **Validation:** PR #24 merged at `52864661b10bdd35feedb3266040700033d05238` from exact tested head `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`. [Auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and the frontend container build. [Auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed backend tests, typecheck, build and container build. Post-merge runs #40212871633 and #40212871603 passed. The Supabase Preview app check on the subsequent PR #26 merge SHA `97b8d7498190884715bd1e9c657d2e432de31feb` failed with `Remote migration versions not found in local migrations directory`; the PR #24 merge check itself was skipped because no Supabase branch was associated. This is tracked under AUTH-UM-000 and no migration was applied.
-- **Remaining:** PR #29 implements initial focus, Tab/Shift+Tab containment, Escape dismissal and trigger focus restoration. PR #43 attempted a dependency-free Chrome DevTools Protocol browser test but is BLOCKED after two approaches: the initial run stalled beyond the test timeout; the direct-Next/process-group follow-up failed to observe the admin row and logged a Next dev cross-origin HMR block. Options are to align the test origin with the dev host and instrument intercepted API URLs, or use an approved browser harness; no further retries in this task. Browser-level focus/responsive verification is not complete. Mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002.
+- **Remaining:** PR #45 implements the dependency-free Chrome DevTools Protocol browser test and the narrow development-origin fix; exact-head web CI passes on `d5bb7707314a8ffd9b214a55f46062847b237698`. PR #43 is closed as superseded. Browser-level focus/responsive checks now have passing automation evidence, but mutation controls remain gated on AUTH-UM-001B/AUTH-UM-002 and no merge is allowed until the Supabase GitHub integration target is verified safe.
 - **Dependencies:** AUTH-UM-002 for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
@@ -209,20 +209,20 @@
 
 ### AUTH-UM-003C — Browser-level dialog focus and responsive contract
 
-- **Priority/status:** P2 / BLOCKED after two materially different technical approaches. Keep PR #43 open for evidence, but do not merge: exact-head web CI fails at `npm test` and browser row rendering is unverified.
-- **Evidence:** `web/src/app/admin/users/page.tsx`, `web/scripts/admin-user-contract.test.mjs`, `web/scripts/admin-user-dialog.browser.test.mjs`, `.github/workflows/web-ci.yml`.
-- **Current behavior:** Existing tests assert focus-management source patterns, but do not execute real browser keyboard events or measure the rendered dialog at phone/landscape/desktop viewports.
-- **Desired behavior:** Verify the implemented read-only detail dialog in a real headless browser without adding an npm browser dependency or calling a real auth service.
+- **Priority/status:** P2 / IMPLEMENTED IN PR #45 — exact-head browser CI passes; merge is held by the external Supabase integration gate.
+- **Evidence:** `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`, `web/scripts/admin-user-contract.test.mjs`; exact head `d5bb7707314a8ffd9b214a55f46062847b237698`; web CI [#40252750055](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055).
+- **Current behavior:** The real browser test uses mocked auth/admin API responses and exercises keyboard focus containment, Escape dismissal, focus restoration, allowlisted detail rendering, non-admin denial and 390×844 / 844×390 / 1280×800 viewport bounds. The loopback dev-origin fix in PR #45 resolves the previously observed HMR origin rejection. The older PR #43 is closed as superseded.
+- **Desired behavior:** Keep browser interaction and responsive assertions enabled and reproducible without real account data or a browser-to-Supabase path.
 - **Acceptance criteria:**
-  - Exercise Tab and Shift+Tab wrap, Escape dismissal and focus restoration using browser input events.
-  - Check the dialog stays inside 390×844 portrait, 844×390 short-landscape and 1280×800 desktop viewports without page-level horizontal overflow.
-  - Confirm the dialog renders only allowlisted account fields and the non-admin UI never calls the admin directory API.
-  - Mock all auth/admin API responses; add no Supabase/browser data access, schema change or mutation control.
-- **Validation/evidence:** Initial web CI [#40228602430](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40228602430) on head `d9f4843d479f8e65e7a8a80d9803aa0a5891e943` remained in `npm test` beyond the intended 180-second test timeout; logs were unavailable while it was active and it was not cancelled. The materially different follow-up at head `0b7aea23f5308f11c9defdae9a38092e572ce641` launched Next directly and killed process groups; service CI [#40228921670](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40228921670) passed tests/typecheck/build/container, but web CI [#40228921732](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40228921732) failed `npm test` after 33.2 seconds waiting for the admin row. Next logs show `GET /admin/users` returned 200 and then a blocked cross-origin request to `/_next/hmr` from `127.0.0.1`; the browser never observed `alice@example.com`. A subsequent documentation/newline-only head `1164676f427ca2b42e112ae313c1ff6a26eae556` reproduced the same web test failure in [#40229036077](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229036077). Typecheck/lint/build/container were skipped after `npm test` failed. No further technical retries in this task: document options and resume only as a separate task.
-- **Dependencies:** Existing read-only UM-3 UI; no schema/audit dependency. Requires the GitHub-hosted runner's preinstalled Chrome/Chromium.
-- **Risk:** Low to medium — browser harness may expose an existing keyboard/layout defect; no runtime auth or database behavior changes.
+  - [x] Exercise Tab and Shift+Tab wrap, Escape dismissal and focus restoration using browser input events.
+  - [x] Check the dialog stays inside 390×844 portrait, 844×390 short-landscape and 1280×800 desktop viewports without page-level horizontal overflow.
+  - [x] Confirm the dialog renders only allowlisted account fields and the non-admin UI never calls the admin directory API.
+  - [x] Mock all auth/admin API responses; add no Supabase/browser data access, schema change or mutation control.
+  - [x] Exact-head web CI passes tests, typecheck, lint, build and frontend container build.
+- **Validation:** Exact-head web CI [#40252750055](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055) passed. The Supabase Preview check was skipped, not passed; the PR remains open until the external integration target and merge-time migration behavior are verified safe.
+- **Dependencies:** Existing read-only UM-3 UI; no schema/audit dependency.
+- **Risk:** Low-to-medium — browser harness and development-only origin allowlist; no runtime auth or database behavior change.
 - **Safety:** No new npm dependency, no real account calls, no Supabase browser access, no schema/migration, no production release, no Keycloak mutation.
-
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
 - **Priority/status:** P2 / MERGED — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) squash-merged at `61adb64a71128b8eac2f5ba2ea28181025af6ac1` from exact tested HEAD `fc29ba65bf1c8c9486fa8b1d4122bb1a7231ba38`. Auth-web CI [#40222012490](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012490) and auth-service CI [#40222012483](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012483) passed; post-merge master runs [#40222175812](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222175812) and [#40222175883](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222175883) passed.
@@ -240,23 +240,17 @@
 
 ### AUTH-UM-003D — Align Next.js dev origin for browser verification
 
-- **Priority/status:** P2 / IN PROGRESS — separate diagnostic slice following blocked AUTH-UM-003C; no browser-level success is claimed yet.
-- **Evidence:** PR #43 exact head `632be6c667e419bb6d3443ea642dc777c9171fd8`; web CI [run #40229190921](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921) failed in `npm test`, while service CI [run #40229190867](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190867) passed. The web job log records `GET /admin/users?browserCase=390x844 200`, then Next.js blocked the cross-origin `/_next/hmr` request from `127.0.0.1` and explicitly recommended `allowedDevOrigins: ['127.0.0.1']`. The browser test timed out waiting for the mocked directory row.
-- **Current behavior:** `web/next.config.ts` configures standalone output only. The browser test starts Next.js in dev mode and navigates to `http://127.0.0.1:<port>`; dev-resource origin validation blocks HMR, and the row assertion times out.
-- **Desired behavior:** Explicitly allow only the loopback origin used by the local dev test; keep production behavior and browser mocks unchanged. On timeout, report only intercepted API method/path pairs, never query strings or credentials.
+- **Priority/status:** P2 / DONE IN PR #45 — exact-head web CI passes; merge gate remains external integration safety.
+- **Evidence:** PR #45 exact head `d5bb7707314a8ffd9b214a55f46062847b237698`; web CI [#40252750055](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055) passed. The previous PR #43 head failed with a blocked cross-origin `/_next/hmr` request from `127.0.0.1` and a timeout waiting for the mocked directory row.
+- **Current behavior:** `web/next.config.ts` allows only the loopback origin needed by the isolated local dev browser test; production origins and API behavior are unchanged. Timeout diagnostics report intercepted API method/path pairs only, without query strings or credentials.
+- **Desired behavior:** Keep the dev-origin allowlist narrow and browser-test diagnostics sanitized.
 - **Acceptance criteria:**
-  - [ ] Add `127.0.0.1` to Next.js `allowedDevOrigins` for development resources only.
-  - [ ] Keep all auth/admin requests mocked and preserve removal of Supabase/database credentials from the child process environment.
-  - [ ] Keep keyboard, allowlisted-rendering, non-admin API-denial and viewport assertions enabled.
-  - [ ] Exact-head web CI passes; confirm the resulting PR #43 head reruns successfully before marking browser verification complete.
-  - [ ] Keep PR #43 unmerged until its checks pass and the separate Supabase GitHub integration merge target is verified safe.
-- **Validation:** GitHub Actions is the test runner; no local execution or real-account test is claimed. No database/schema/migration, production deployment, or account mutation.
-- **Exact-head status note (2026-10-26):** PR #45 is open at head `2840a5e07093152c6cafc0047776cca4faba28a1` and targets the browser-test branch used by PR #43. The available workflow-run lookup shows no pull-request-triggered run for this exact head; the workflows' PR trigger targets `master`, while this stacked PR targets a feature branch. Do not treat this as a pass. Verify the resulting PR #43 head with web CI before marking browser verification complete or merging to `master`.
+  - [x] Add `127.0.0.1` to Next.js `allowedDevOrigins` for development resources only.
+  - [x] Keep all auth/admin requests mocked and strip Supabase/database credentials from the child process environment.
+  - [x] Keep keyboard, allowlisted-rendering, non-admin API-denial and viewport assertions enabled.
+  - [x] Exact-head web CI passes on `d5bb7707314a8ffd9b214a55f46062847b237698`.
+  - [x] Close PR #43 as superseded by PR #45; keep PR #45 open while the Supabase integration target is unverified.
+- **Validation:** [Auth-web CI #40252750055](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40252750055) passed; Supabase Preview skipped because no Supabase Branch is associated.
 - **Dependencies:** AUTH-UM-003C browser contract harness; no database/audit dependency.
 - **Risk:** Low — Next.js development-origin allowlist plus failure diagnostics only; no production auth or API contract changes.
-- **Links:** [PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [web CI failure](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40229190921).
-
-## Release evidence and guardrails
-
-- PR #18's merge triggered [auth-service-release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836), which completed image publication and a promotion request. This is not independent proof of production rollout/health; no platform-infra inspection or rollback was performed.
-- The user has not authorized production deployment/migration/live account mutation. Treat any workflow that can publish/promote/deploy as a separate side effect, not as implied by PR auto-merge authorization.
+- **Links:** [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45), [superseded PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43).
