@@ -28,6 +28,24 @@
 - **Risk/remaining control:** Manual dispatch intentionally retains the ability to publish/promote production images; it must not be dispatched without separate release authorization. The prior [PR #18 release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836) proves only that a promotion request occurred, not that production rollout/health was verified.
 - **Links:** [release workflow](../../.github/workflows/release.yml), [PR #22](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/22).
 
+### AUTH-OPS-002 — Verify Supabase GitHub integration target and merge side effects
+
+- **Priority/status:** P0 / BLOCKED — the connected Supabase environment and main-push deployment behavior are not verified as non-production/safe.
+- **Evidence:** Read-only `list_projects` returned only project ref `gtqovpusfyyvxpeezxlo` (project status `ACTIVE_HEALTHY`, region `ap-southeast-1`). `list_branches` returned one non-persistent branch `main` tracking Git `master`, status `MIGRATIONS_FAILED`, preview status `ACTIVE_HEALTHY`; no additional branch was created. The checked-in `.env.example` uses `https://YOUR_PROJECT_REF.supabase.co`, so repository source does not confirm the runtime target. Read-only migration history still contains 67 versions, ending at `20261020234922 keycloak_identity_persistence`, while the documented remote-only versions and missing local RPC migration remain unresolved.
+- **Trigger evidence:** After [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47) merged to `master` at `3af07f3749d970fe4ee084a953168c7f1ddd5975`, Supabase Preview check [#121371496330](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks) ran at 2026-10-26 02:42:44Z and failed at 02:42:51Z with `Remote migration versions not found in local migrations directory.` PR #47 changed no migration/schema files. The read-only ledger did not show a new migration version after the merge, but available read-only evidence cannot prove whether the external integration attempted any DDL before failing.
+- **Current behavior:** The repository CI workflows are test/build-only and `.github/workflows/release.yml` is `workflow_dispatch`-only, but the connected Supabase GitHub integration also reports a check on the master merge. Official Supabase documentation says a connected GitHub integration watches commits and can deploy changes from its connected branch. The exact target/environment and side effects are not independently confirmed.
+- **Desired behavior:** Explicitly identify the connected project and branch as production vs development/preview, understand whether master pushes apply migrations, and reconcile migration provenance in an approved non-production environment before any further master merge.
+- **Acceptance criteria:**
+  - [ ] Confirm the exact Supabase GitHub integration repository, working directory, connected branch, and target environment from authorized project settings without exposing credentials.
+  - [ ] Verify whether a master push runs migration deployment and identify the exact target before approving any future merge.
+  - [ ] Reconcile remote-only migration versions and the missing local auth RPC migration from authoritative artifacts; do not reconstruct migrations from names or catalog guesses.
+  - [ ] Repeat read-only project/branch/migration/catalog checks after the target is verified; no schema writes, resets, branch merges, or function deployments in this task.
+  - [ ] Keep future PRs open if merge could trigger an unverified/prohibited deployment or migration, including documentation-only PRs.
+- **Validation:** Read-only Supabase project/branch/migration queries; Post-merge check result above; official [Supabase GitHub integration documentation](https://supabase.com/docs/guides/deployment/branching/github-integration) and [Deployment & Branching](https://supabase.com/docs/guides/deployment). No migration or direct SQL write was invoked by the agent.
+- **Dependencies:** Authoritative environment/integration configuration and migration provenance; current project-ref-only tools cannot establish the production target.
+- **Risk:** Critical — an unverified GitHub integration may run migration deployment on master pushes while the local/remote migration ledgers are inconsistent.
+- **Links:** [UM roadmap](../user-management-roadmap.md), [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), [Supabase integration docs](https://supabase.com/docs/guides/deployment/branching/github-integration).
+
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
 - **Priority/status:** P0 / BLOCKED — source/readiness contract work is merged; migration provenance and approved non-production validation remain a release gate.
@@ -284,21 +302,21 @@
 
 ### AUTH-UM-003D — Browser-level admin user dialog verification
 
-- **Priority/status:** P2 / IN PR — [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), replacing stale-base [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45); this branch carries the reviewed UI/test slice onto current master after the roadmap evidence PR merged.
-- **Evidence:** `web/next.config.ts`, `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`; original PR #45 exact head `420b97b79991b376062189e7ae27ae8589556499`.
-- **Current behavior:** The prior Chrome DevTools Protocol browser test was blocked when Next.js rejected the loopback origin for HMR, so the mocked admin directory row never rendered. The dialog also needed a bounded height and internal scrolling for short landscape viewports.
-- **Desired behavior:** Allow only `127.0.0.1` as a Next.js development origin for the test harness; exercise the real UI in Chrome/Chromium against a local mocked Auth API; constrain the read-only dialog to the viewport with scrollable content.
+- **Priority/status:** P2 / MERGED — [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47) squash-merged at `3af07f3749d970fe4ee084a953168c7f1ddd5975` from exact tested head `03ee8265bbcdbe7bca1f50b101c07530b672fab1`; superseded [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45) is closed.
+- **Evidence:** `web/next.config.ts`, `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`.
+- **Current behavior:** The browser harness now allows only `127.0.0.1` as a Next.js development origin, and the read-only dialog is height-bounded with internal scrolling. The real-browser test mocks local Auth API routes only and removes Supabase/database environment variables from the spawned server.
+- **Desired behavior:** Preserve the tested accessible dialog and responsive layout without introducing browser-to-Supabase access or mutation endpoints.
 - **Acceptance criteria:**
-  - Browser test runs under the existing `npm test` script with Chrome/Chromium and no Supabase/service-role credentials.
-  - Verify 390×844 portrait, 844×390 landscape, and 1280×800 desktop; dialog remains within the viewport and landscape content is reachable by internal scrolling.
-  - Verify initial focus, Tab/Shift+Tab containment, Escape dismissal, focus restoration, and that a non-admin never requests the admin directory API.
-  - Mock only local `/auth/*` and `/api/admin/users*` requests; diagnostics record method/path only, without query strings or credentials.
-  - Rendered UI never exposes password hashes, MFA secrets, refresh tokens, recovery codes, or private passkey material.
-  - Exact-head auth-web and auth-service CI pass; release workflow remains manual-dispatch-only.
-- **Validation:** Original PR #45 exact head passed auth-web CI [run #40258016304](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304), including browser test result 10 tests / 10 passed / 0 failed, and auth-service CI [run #40258016309](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309). Replacement branch must rerun both checks after rebasing the task queue onto current master.
+  - [x] Browser test runs under the existing `npm test` script with Chrome/Chromium and no Supabase/service-role credentials.
+  - [x] Verify 390×844 portrait, 844×390 landscape, and 1280×800 desktop; dialog stays within viewport and landscape content is internally scrollable.
+  - [x] Verify initial focus, Tab/Shift+Tab containment, Escape dismissal, focus restoration, and that a non-admin never requests the admin directory API.
+  - [x] Mock only local `/auth/*` and `/api/admin/users*` requests; diagnostics record method/path only, without query strings or credentials.
+  - [x] Rendered UI does not expose password hashes, MFA secrets, refresh tokens, recovery codes, or private passkey material.
+- **Validation:** Exact tested PR head `03ee8265bbcdbe7bca1f50b101c07530b672fab1`: auth-web CI [run #40260229780](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260229780) passed (browser test included; 10 tests / 10 passed / 0 failed), auth-service CI [run #40260229779](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260229779) passed, and auth-service push CI [run #40260225453](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260225453) passed. Post-merge auth-web [run #40260404454](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260404454) and auth-service [run #40260404468](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260404468) also passed on merge SHA `3af07f3749d970fe4ee084a953168c7f1ddd5975`. The post-merge Supabase Preview check failed with migration-history drift; see AUTH-OPS-002.
 - **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or mutation endpoint dependency.
-- **Risk:** Low/medium — dev-only origin configuration and browser verification; no production host is allowlisted and no real Auth/Supabase request is made.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), current [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), superseded [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45).
+- **Risk:** Low/medium for the UI slice. The merge-triggered Supabase integration risk is tracked separately as P0 AUTH-OPS-002.
+- **Safety:** No migration files changed and no direct database write, account mutation, production release dispatch, or TCE code change was performed by this task.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), [Supabase Preview failure on merge SHA](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975).
 
 ## Release evidence and guardrails
 
