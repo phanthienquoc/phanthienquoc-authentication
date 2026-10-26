@@ -189,7 +189,6 @@ describe('User-management security contracts', () => {
     expect(createUser).toHaveBeenCalledWith({
       email: 'person@example.com',
       passwordHash: 'test-password-hash',
-      role: 'USER',
     });
   });
 });

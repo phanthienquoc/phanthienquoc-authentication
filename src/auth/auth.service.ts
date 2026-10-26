@@ -27,7 +27,6 @@ export class AuthService {
       const user = await this.repository.createUser({
         email,
         passwordHash: await this.passwords.hash(input.password),
-        role: 'USER',
       });
       return { user: this.publicUser(user) };
     } catch (error) {
