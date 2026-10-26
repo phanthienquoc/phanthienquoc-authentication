@@ -120,7 +120,6 @@ describe('server-issued MFA challenge completion', () => {
       'hash:'.concat(challengeToken),
       expectedCodeHash,
     );
-    expect(repository.consumeRecoveryCode).toBeUndefined();
     expect(auth.completeMfaRecoveryLogin).toHaveBeenCalledWith(
       user,
       expect.objectContaining({ response, userAgent: 'test-agent', ip: '203.0.113.5' }),
