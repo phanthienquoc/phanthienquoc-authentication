@@ -16,6 +16,7 @@ const mfaUser: AuthUser = {
   email: 'person@example.com',
   passwordHash: 'password-hash',
   role: 'USER',
+  status: 'ACTIVE',
   mfaEnabled: true,
   mfaSecretEncrypted: 'encrypted-secret',
 };
@@ -93,4 +94,30 @@ describe('Passkey MFA challenge parity', () => {
       [],
     );
   });
+
+  it('rejects a suspended account before updating the authenticator counter or issuing a session', async () => {
+    const passkeys = {
+      findByCredentialId: jest.fn().mockResolvedValue(credential),
+      consumeChallenge: jest.fn().mockResolvedValue({ id: 'challenge-row-1', user_id: null }),
+      updateCredential: jest.fn().mockResolvedValue(undefined),
+    };
+    const users = { findById: jest.fn().mockResolvedValue({ ...mfaUser, status: 'SUSPENDED' }) };
+    const auth = { beginMfaLogin: jest.fn(), issueLoginForUser: jest.fn() };
+    const service = new PasskeyService(
+      passkeys as unknown as PasskeyRepository,
+      users as unknown as AuthRepository,
+      auth as unknown as AuthService,
+    );
+    const clientDataJSON = Buffer.from(JSON.stringify({ challenge: 'challenge-1' })).toString('base64url');
+
+    await expect(service.authenticationVerify({
+      id: credential.credential_id,
+      response: { clientDataJSON, transports: [] },
+    }, '203.0.113.5', 'test-agent')).rejects.toThrow('Invalid credentials');
+
+    expect(passkeys.updateCredential).not.toHaveBeenCalled();
+    expect(auth.beginMfaLogin).not.toHaveBeenCalled();
+    expect(auth.issueLoginForUser).not.toHaveBeenCalled();
+  });
+
 });

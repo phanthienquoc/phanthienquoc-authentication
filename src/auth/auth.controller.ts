@@ -98,6 +98,8 @@ export class AuthController {
   @Post('mfa/setup')
   async mfaSetup(@Headers('authorization') authorization?: string) {
     const userId = this.authenticatedUserId(authorization);
+    const user = await this.repository.findById(userId);
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     const secret = this.mfa.generateSecret();
     await this.repository.updateMfa(userId, false, this.mfaCrypto.encrypt(secret));
     return { secret };
@@ -110,7 +112,8 @@ export class AuthController {
   ) {
     const userId = this.authenticatedUserId(authorization);
     const user = await this.repository.findById(userId);
-    if (!user?.mfaSecretEncrypted || this.mfaCrypto.decrypt(user.mfaSecretEncrypted) !== body.secret) {
+    if (!user || user.status !== 'ACTIVE' || !user.mfaSecretEncrypted ||
+        this.mfaCrypto.decrypt(user.mfaSecretEncrypted) !== body.secret) {
       throw new UnauthorizedException('Invalid MFA setup');
     }
     if (!this.mfa.verifyTotp(body.secret, body.code)) {
@@ -129,7 +132,7 @@ export class AuthController {
   ) {
     const userId = this.authenticatedUserId(authorization);
     const user = await this.repository.findById(userId);
-    if (!user?.mfaEnabled || !user.mfaSecretEncrypted) {
+    if (!user || user.status !== 'ACTIVE' || !user.mfaEnabled || !user.mfaSecretEncrypted) {
       throw new UnauthorizedException('MFA is not enabled');
     }
     if (!this.mfa.verifyTotp(this.mfaCrypto.decrypt(user.mfaSecretEncrypted), body.code)) {
@@ -151,7 +154,7 @@ export class AuthController {
     if (!challengeUserId) throw new UnauthorizedException('Invalid or expired MFA challenge');
 
     const user = await this.repository.findById(challengeUserId);
-    if (!user?.mfaEnabled || !user.mfaSecretEncrypted) {
+    if (!user || user.status !== 'ACTIVE' || !user.mfaEnabled || !user.mfaSecretEncrypted) {
       throw new UnauthorizedException('Invalid or expired MFA challenge');
     }
 
@@ -187,7 +190,9 @@ export class AuthController {
     if (!userId) throw new UnauthorizedException('Invalid or expired MFA challenge or recovery code');
 
     const user = await this.repository.findById(userId);
-    if (!user?.mfaEnabled) throw new UnauthorizedException('MFA is not enabled for this account');
+    if (!user || user.status !== 'ACTIVE' || !user.mfaEnabled) {
+      throw new UnauthorizedException('MFA is not enabled for this account');
+    }
     return this.auth.completeMfaRecoveryLogin(user, {
       response, userAgent, ip: this.clientIp(forwardedFor),
     });
@@ -196,7 +201,8 @@ export class AuthController {
   @Get('mfa/status')
   async mfaStatus(@Headers('authorization') authorization?: string) {
     const user = await this.repository.findById(this.authenticatedUserId(authorization));
-    return { enabled: user?.mfaEnabled ?? false };
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
+    return { enabled: user.mfaEnabled };
   }
 
   @Post('passkey/register/options')

@@ -14,11 +14,13 @@ const user: AuthUser = {
   email: 'person@example.com',
   passwordHash: 'password-hash',
   role: 'USER',
+  status: 'ACTIVE',
   mfaEnabled: true,
   mfaSecretEncrypted: 'encrypted-secret',
 };
 
 function makeController(overrides: {
+  user?: AuthUser;
   challengeUserId?: string | null;
   consumedUserId?: string | null;
   recoveryUserId?: string | null;
@@ -33,7 +35,7 @@ function makeController(overrides: {
     findMfaLoginChallengeUserId: jest.fn().mockResolvedValue(
       overrides.challengeUserId === undefined ? user.id : overrides.challengeUserId,
     ),
-    findById: jest.fn().mockResolvedValue(user),
+    findById: jest.fn().mockResolvedValue(overrides.user ?? user),
     recordMfaLoginFailure: jest.fn().mockResolvedValue(true),
     consumeMfaLoginChallenge: jest.fn().mockResolvedValue(
       overrides.consumedUserId === undefined ? user.id : overrides.consumedUserId,
@@ -85,6 +87,21 @@ describe('server-issued MFA challenge completion', () => {
     )).rejects.toBeInstanceOf(UnauthorizedException);
 
     expect(repository.recordMfaLoginFailure).toHaveBeenCalledWith('hash:'.concat(challengeToken));
+    expect(repository.consumeMfaLoginChallenge).not.toHaveBeenCalled();
+    expect(auth.completeMfaLogin).not.toHaveBeenCalled();
+  });
+
+  it('rejects a suspended account before consuming an MFA challenge', async () => {
+    const suspendedUser = { ...user, status: 'SUSPENDED' as const };
+    const { controller, repository, auth, response } = makeController({ user: suspendedUser });
+
+    await expect(controller.mfaLogin(
+      { challengeToken, code: '123456' },
+      undefined,
+      undefined,
+      response,
+    )).rejects.toBeInstanceOf(UnauthorizedException);
+
     expect(repository.consumeMfaLoginChallenge).not.toHaveBeenCalled();
     expect(auth.completeMfaLogin).not.toHaveBeenCalled();
   });

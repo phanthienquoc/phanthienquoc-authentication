@@ -36,7 +36,7 @@ export class PasskeyService {
   async registrationOptions(userId: string) {
     this.requireConfig();
     const user = await this.users.findById(userId);
-    if (!user) throw new UnauthorizedException();
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     const existing = await this.passkeys.listForUser(userId);
     const options = await generateRegistrationOptions({
       rpName: rpName(),
@@ -54,6 +54,8 @@ export class PasskeyService {
 
   async registrationVerify(userId: string, response: any) {
     this.requireConfig();
+    const user = await this.users.findById(userId);
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     const clientData = JSON.parse(Buffer.from(response.response.clientDataJSON, 'base64url').toString('utf8')) as { challenge: string };
     const challenge = await this.passkeys.consumeChallenge(clientData.challenge, 'registration');
     if (!challenge || challenge.user_id !== userId) throw new UnauthorizedException('Invalid or expired passkey challenge');
@@ -105,19 +107,36 @@ export class PasskeyService {
       requireUserVerification: true,
     });
     if (!verification.verified) throw new UnauthorizedException('Passkey authentication failed');
+    const user = await this.users.findById(credential.user_id);
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     await this.passkeys.updateCredential(
       credential.id,
       credential.counter,
       verification.authenticationInfo.newCounter,
       response.response.transports,
     );
-    const user = await this.users.findById(credential.user_id);
-    if (!user) throw new UnauthorizedException();
     if (user.mfaEnabled) return this.auth.beginMfaLogin(user);
     return this.auth.issueLoginForUser(user, { ip, userAgent, response: httpResponse });
   }
 
-  async list(userId: string) { return this.passkeys.listForUser(userId); }
-  async rename(userId: string, id: string, name: string) { return this.passkeys.rename(userId, id, name); }
-  async remove(userId: string, id: string) { return this.passkeys.remove(userId, id); }
+  async list(userId: string) {
+    await this.requireActiveUser(userId);
+    return this.passkeys.listForUser(userId);
+  }
+
+  async rename(userId: string, id: string, name: string) {
+    await this.requireActiveUser(userId);
+    return this.passkeys.rename(userId, id, name);
+  }
+
+  async remove(userId: string, id: string) {
+    await this.requireActiveUser(userId);
+    return this.passkeys.remove(userId, id);
+  }
+
+  private async requireActiveUser(userId: string) {
+    const user = await this.users.findById(userId);
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
+    return user;
+  }
 }
