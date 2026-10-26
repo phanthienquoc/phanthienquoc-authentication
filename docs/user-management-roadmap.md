@@ -288,3 +288,7 @@ A read-only comparison of the live 78-entry Supabase ledger against current `mas
 - **Signup least privilege:** PR #71 hardens the persistence boundary to accept only email/password hash and hardcode `USER`; prior exact code/test head passed Auth Service CI. The current code-only branch must be revalidated after docs are separated into PR #72.
 - **Merge gate:** Auth `release.yml` is manual-dispatch-only. Supabase official branching/GitHub integration docs state a connected integration can execute Migrate/Deploy on commits; the actual connection target is not exposed. Keep default-branch merges gated until that target and effects are authoritative. No migration, schema/data write, Supabase branch operation, function deployment, application release or live account mutation occurred in this run.
 - **Docs consulted:** [Supabase branching](https://supabase.com/docs/guides/deployment/branching) and [GitHub integration](https://supabase.com/docs/guides/deployment/branching/github-integration).
+
+## PostgREST bounded follow-up — 2026-10-26 20:50 +07:00
+
+The read-only log window `2026-10-26 13:30:00Z–13:50:00Z` returned 17 PostgREST timeout-manager events on path `/`, latest `13:49:07.102820Z`, and no matching migration-error events. The earlier 12:30–13:30 UTC window had 44 timeout events and two migration errors. The five-minute successful OpenAPI metadata cache remains on master but undeployed; root-cause resolution is not established.
