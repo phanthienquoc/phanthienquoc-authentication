@@ -127,6 +127,22 @@
 - **Dependencies:** AUTH-UM-000 and AUTH-OPS-003.
 - **Risk:** High but contained by service-role-only EXECUTE; mutable search_path on SECURITY DEFINER functions remains a hardening concern.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Supabase database functions guidance](https://supabase.com/docs/guides/database/functions), [Supabase API security guidance](https://supabase.com/docs/guides/api/securing-your-api).
+### AUTH-OPS-006 — Require the admin audit RPC in readiness
+
+- **Priority/status:** P1 / IMPLEMENTED IN PR — code/test slice only; no migration or database change.
+- **Evidence:** `src/users/admin-audit.service.ts` calls `auth_record_admin_audit_event`; the live read-only catalog confirms the function exists with the expected 10-argument signature, fixed search_path and EXECUTE restricted to service_role/owner. `AuthRepository.ready()` verifies the PostgREST schema paths for the auth/session/MFA/passkey/lifecycle RPCs but previously omitted this audit RPC.
+- **Current behavior:** The status/readiness endpoint could report the persistence contract as connected when the audit RPC path was absent, even though AdminGuard denial logging, RecentMfaGuard, and lifecycle audit depend on it.
+- **Desired behavior:** Fail closed at readiness if `/rpc/auth_record_admin_audit_event` is absent from the read-only PostgREST schema.
+- **Acceptance criteria:**
+  - [x] Add the audit RPC path to the production readiness contract.
+  - [x] Add an explicit regression test proving readiness fails when only the audit RPC path is absent.
+  - [ ] Exact-head Auth Service CI passes tests, typecheck, build, and container build.
+  - [ ] Inspect merge-time side effects; do not merge if the connected Supabase integration could apply migrations without an authoritative safe target.
+- **Validation:** Source/test-only change; no schema, data, credentials, release workflow, or Supabase operation changed.
+- **Dependencies:** Existing audit migration `supabase/migrations/20261026035340_auth_admin_audit_events.sql`, `AdminAuditService.record`, and read-only PostgREST OpenAPI inspection.
+- **Risk:** Low. Readiness may fail closed when the audit RPC is unavailable, which is preferable to reporting a healthy persistence contract while administrative audit operations fail.
+- **Links:** [AdminAuditService](../../src/users/admin-audit.service.ts), [audit migration](../../supabase/migrations/20261026035340_auth_admin_audit_events.sql), [readiness test](../../test/auth.repository.ready.spec.ts).
+
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
 - **Priority/status:** P0 / PARTIALLY RECONCILED — live schema, current RPC signatures/ACLs and lifecycle source parity are verified; remote-only migration provenance, Keycloak version mismatch, and runtime/environment mapping remain unresolved.
