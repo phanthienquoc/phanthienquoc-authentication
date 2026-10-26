@@ -163,7 +163,7 @@
   - [ ] Add non-production end-to-end integration coverage for audit success/failure and consistency with eventual mutations.
   - [ ] Prove audit writes are atomic with each eventual mutation before creating mutation routes.
 - **Validation:** Exact-head CI [#40266935252](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40266935252) and post-merge CI [#40267173209](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40267173209) passed. Supabase Preview was skipped because no branch was associated and preview-branch creation is disabled; this is not non-production integration evidence. No account rows were read or changed by this run.
-- **Dependencies:** AUTH-OPS-002 migration-history reconciliation; AUTH-UM-002 remains blocked until status schema, suspension enforcement, authorization/concurrency checks and atomic audit behavior are implemented and tested.
+- **Dependencies:** AUTH-OPS-002 migration-history reconciliation; AUTH-UM-002 remains blocked until lifecycle authorization/concurrency/atomic-audit checks and a separate non-production integration target are available.
 - **Risk:** High — audit records must not be forgeable or contain secrets. The application role cannot write/read the table directly and has only EXECUTE on the validated RPC.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [audit schema/RPC migration](../../supabase/migrations/20261026035340_auth_admin_audit_events.sql), [RPC-only grants migration](../../supabase/migrations/20261026035431_auth_admin_audit_rpc_only_access.sql), [PR #54](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/54).
 
@@ -331,7 +331,7 @@
   - [x] Keep all API responses mocked; no real Supabase, account rows, secrets or mutations.
   - [x] Exact-head auth-web and auth-service CI pass on `420b97b79991b376062189e7ae27ae8589556499`.
 - **Validation:** PR #45 was closed as superseded; its viewport-bounded dialog fix and browser assertions are included in merged PR #47 (`3af07f3749d970fe4ee084a953168c7f1ddd5975`). The skipped Supabase Preview check is recorded under AUTH-OPS-002 and remains relevant to migration-bearing changes, not this merged UI-only slice.
-- **Dependencies:** Existing read-only UM-3 UI and API contract; no schema, audit, migration or mutation dependency. Production/non-production classification remains a merge gate for migration-bearing changes only.
+- **Dependencies:** Existing read-only UM-3 UI and API contract; this merged UI-only slice has no schema/mutation dependency. The shared project is private production, so any future migration-bearing work remains blocked until a separate safe non-production target and integration settings are verified.
 - **Risk:** Low-to-medium — test harness and dev-only allowlist plus a page-scoped scroll constraint; runtime authentication and account-management behavior remain unchanged.
 - **Links:** [superseded PR #43](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/43), [current PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45), [auth-web CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309), [auth-service CI](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304).
 
