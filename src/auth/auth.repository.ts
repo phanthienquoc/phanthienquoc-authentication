@@ -14,6 +14,15 @@ type UserRow = {
   mfa_enabled: boolean; mfa_secret_encrypted: string | null;
 };
 
+type RefreshUserRow = {
+  id: string;
+  email: string;
+  role: 'USER' | 'ADMIN';
+  mfa_enabled: boolean;
+};
+
+type RefreshAuthUser = Pick<AuthUser, 'id' | 'email' | 'role' | 'mfaEnabled'>;
+
 @Injectable()
 export class AuthRepository {
   constructor(private readonly supabase: SupabaseClientService) {}
@@ -130,7 +139,7 @@ export class AuthRepository {
   async rotateRefreshSession(input: {
     tokenHash: string; nextSessionId: string; nextTokenHash: string;
     expiresAt: Date; ip?: string; userAgent?: string;
-  }): Promise<{ status: 'rotated'; user: AuthUser; familyId: string } | { status: 'reuse-detected'; familyId: string }> {
+  }): Promise<{ status: 'rotated'; user: RefreshAuthUser; familyId: string } | { status: 'reuse-detected'; familyId: string }> {
     const { data, error } = await this.supabase.db.rpc('auth_rotate_refresh_session', {
       p_token_hash: input.tokenHash, p_next_session_id: input.nextSessionId,
       p_next_token_hash: input.nextTokenHash, p_next_expires_at: input.expiresAt.toISOString(),
@@ -138,12 +147,21 @@ export class AuthRepository {
     });
     if (error) this.persistenceError();
     const result = data as
-      | { status: 'rotated'; family_id: string; user: UserRow }
+      | { status: 'rotated'; family_id: string; user: RefreshUserRow }
       | { status: 'reuse-detected'; family_id: string }
       | { status: 'invalid' } | null;
     if (!result || result.status === 'invalid') throw new UnauthorizedException('Refresh session invalid or expired');
     if (result.status === 'reuse-detected') return { status: 'reuse-detected', familyId: result.family_id };
-    return { status: 'rotated', familyId: result.family_id, user: this.mapUser(result.user)! };
+    return {
+      status: 'rotated',
+      familyId: result.family_id,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        role: result.user.role,
+        mfaEnabled: result.user.mfa_enabled,
+      },
+    };
   }
 
   async revokeRefreshToken(tokenHash: string): Promise<boolean> {
