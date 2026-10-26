@@ -27,7 +27,7 @@ export class AdminGuard implements CanActivate {
     if (!match) throw new UnauthorizedException('Bearer access token required');
 
     const claims = this.jwt.verify(match[1]);
-    let data: { id: string; role: string } | null = null;
+    let data: { id: string; role: string; status: string } | null = null;
     let error: unknown = null;
     try {
       const result = await this.supabase.db

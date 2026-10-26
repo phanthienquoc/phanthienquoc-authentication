@@ -28,7 +28,7 @@ function createSupabase(paths: readonly string[]) {
 
 describe('AuthRepository.ready RPC contract', () => {
   it('requires every authentication RPC in the read-only PostgREST schema', async () => {
-    const { supabase } = createSupabase(requiredRpcPaths);
+    const { supabase, query } = createSupabase(requiredRpcPaths);
     const repository = new AuthRepository(supabase as unknown as SupabaseClientService);
 
     await expect(repository.ready()).resolves.toBeUndefined();
