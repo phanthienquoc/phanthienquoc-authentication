@@ -102,7 +102,7 @@ export class AuthRepository {
   async updateMfa(userId: string, enabled: boolean, encryptedSecret: string | null) {
     const { data, error } = await this.supabase.db.from('users').update({
       mfa_enabled: enabled, mfa_secret_encrypted: encryptedSecret, updated_at: new Date().toISOString(),
-    }).eq('id', userId).select('id').maybeSingle();
+    }).eq('id', userId).eq('status', 'ACTIVE').select('id').maybeSingle();
     if (error) this.persistenceError();
     if (!data) throw new ServiceUnavailableException('Unable to update MFA configuration');
   }
