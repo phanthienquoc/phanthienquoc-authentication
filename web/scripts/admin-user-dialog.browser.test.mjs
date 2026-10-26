@@ -391,10 +391,10 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
     assert.equal(mutationRequests.length, mutationCountBeforeRoleConfirm, "Role mutation must not be sent before explicit confirmation.");
     await chooseReason("SECURITY_REVIEW");
     holdNextMutation = true;
-    await evaluate("document.querySelector('[data-testid=\\\"confirm-mutation\\\"]')?.click()");
-    await waitFor("document.querySelector('[data-testid=\\\"confirm-mutation\\\"]')?.textContent?.includes('Working…')", "role mutation enters pending state");
+    await evaluate("document.querySelector('[data-testid=confirm-mutation]')?.click()");
+    await waitFor("document.querySelector('[data-testid=confirm-mutation]')?.textContent?.includes('Working…')", "role mutation enters pending state");
     await pressKey("Escape", "Escape", 27);
-    await waitFor("Boolean(document.querySelector('[role=\\\"dialog\\\"]'))", "dialog stays open while a privileged mutation is pending");
+    await waitFor("Boolean(document.querySelector('[role=dialog]'))", "dialog stays open while a privileged mutation is pending");
     await waitFor("document.body.innerText.includes('Role changed to ADMIN.')", "role mutation success");
     assert.equal(mutationRequests.at(-1).method, "PATCH");
     assert.equal(mutationRequests.at(-1).body.role, "ADMIN");
