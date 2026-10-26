@@ -297,13 +297,13 @@
 - **Acceptance criteria:**
   - [x] Backend/web source tests, typecheck and build passed for merged UM-1 through UM-3 code.
   - [x] Verify live RPC signatures, bodies, fixed search paths, ACLs and Auth-table grants read-only.
-  - [x] Run synthetic database-RPC integration for active session creation, suspension and refresh-session revocation, refusal to create a refresh session while suspended, reactivation, explicit session revocation, role promotion, non-admin denial, self-role/self-suspension denial, and audit-failure rollback.
+  - [x] Run synthetic database-RPC integration for active session creation, suspension and refresh-session revocation, refusal to create a refresh session while suspended, reactivation, explicit session revocation, role promotion, non-admin denial, self-role/self-suspension denial, audit-failure rollback, and response/audit sensitive-field allowlisting.
   - [x] Verify synthetic fixture cleanup leaves zero matching users, sessions, and audit events; no real account rows were queried.
   - [ ] Run application-level login, refresh, MFA/recovery, passkey and admin HTTP flows against the explicitly approved non-production runtime.
   - [ ] Verify cookies, CORS/CSRF, rate limits, gateway forwarding, and response/audit redaction without exposing secrets.
   - [ ] Reconcile historical migration provenance before any new migration/apply operation; exact authorization is still required for each future migration.
 - **Source-level coverage:** [AUTH-UM-004A / PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70) adds suspended-refresh and migration-contract regression tests; it is complementary to, not a replacement for, synthetic database-RPC integration.
-- **Validation:** Connected Supabase execute_sql completed the atomic synthetic-fixture block without assertion errors. A subsequent read-only query returned `synthetic_users_remaining=0`, `synthetic_sessions_remaining=0`, `synthetic_audit_events_remaining=0`. No migration or schema change was applied, no Supabase branch operation or production release occurred, and no persistent fixture data remains. A dedicated GitHub documentation branch/PR records this evidence.
+- **Validation:** Connected Supabase execute_sql completed two atomic synthetic-fixture blocks without assertion errors: lifecycle/session/audit-failure behavior and role/status response plus audit-field allowlisting. Read-only cleanup queries returned `synthetic_users_remaining=0`, `synthetic_sessions_remaining=0`, `synthetic_audit_events_remaining=0` for both fixture prefixes. No migration or schema change was applied, no Supabase branch operation or production release occurred, and no persistent fixture data remains. A dedicated GitHub documentation branch/PR records this evidence.
 - **Dependencies:** Approved non-production project `gtqovpusfyyvxpeezxlo`; current service-role RPC contracts; an approved application runtime URL/config mapping for HTTP-level tests.
 - **Risk:** Medium — lifecycle writes were exercised only against generated synthetic identities and cleaned immediately. Do not expand to real account rows or migration operations without the required exact authorization.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70).
@@ -525,3 +525,11 @@
 - Read-only log window `2026-10-26 13:30:00Z–13:50:00Z` returned 17 PostgREST timeout-manager events; latest event timestamp was `13:49:07.102820Z`.
 - The same bounded query found no matching migration-executor error events. Earlier 12:30–13:30 UTC evidence had 44 PostgREST timeouts and two missing-local-migration errors.
 - The successful five-minute OpenAPI metadata cache remains on master but undeployed; do not claim it resolved the incident until a separately authorized release and a bounded post-release comparison.
+
+
+## UM-4 response/audit allowlist follow-up — 2026-10-26 20:55 +07:00
+
+- A second atomic PostgreSQL DO statement used three generated synthetic users and asserted that role-promotion and status-suspension RPC responses contain no `password_hash`, `mfa_secret_encrypted`, `token_hash`, recovery-code, passkey or credential fields.
+- The same statement checked synthetic audit-event JSON for the same sensitive-field names and required at least two audit events.
+- The statement cleaned only its generated audit/session/user fixtures. A separate read-only query returned zero matching synthetic users, sessions, and audit events.
+- No real account rows or credential values were read; no schema or migration was changed. This is database-RPC response/audit validation, not a substitute for HTTP-level response/cookie/MFA/passkey integration.
