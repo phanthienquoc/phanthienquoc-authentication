@@ -307,16 +307,16 @@
 
 ### AUTH-UM-004A — Regression coverage for suspension across auth entrypoints
 
-- **Priority/status:** P1 / TEST IMPLEMENTED; exact-head CI pending — [draft PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70). This source-level slice is independent of live Supabase writes; UM-4 end-to-end integration remains BLOCKED.
+- **Priority/status:** P1 / TEST VERIFIED; UM-4 integration remains BLOCKED — [draft PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70). Exact-head Auth Service CI passed at `d769ceb23b14e1b160638320f56d088cdcd1f28e` ([run #40305791232](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40305791232)). This source-level slice is independent of live Supabase writes and does not close UM-4.
 - **Evidence:** `test/auth-flow-security.spec.ts` already rejects suspended accounts before login MFA challenge/session creation; the live/source migration `20261026080831_auth_user_status_enforcement.sql` enforces ACTIVE status across refresh, MFA challenge/recovery, and passkey challenge RPCs. Before this slice there was no unit regression for a suspended refresh result and no dedicated migration contract test covering all those RPCs/grants.
 - **Current behavior:** Runtime/source checks deny suspended users, but test coverage did not explicitly assert that a suspended refresh result clears the refresh cookie and never issues an access token; the migration's active-only RPC contract was only indirectly covered.
 - **Desired behavior:** Lock in ACTIVE-only behavior across refresh, MFA, recovery and passkey paths, fixed search paths, and service-role-only EXECUTE grants without contacting the live database.
 - **Acceptance criteria:**
   - [x] Add a refresh regression asserting suspended result rejection, cookie clearing and no access-token issuance.
   - [x] Add a source-level migration contract test for ACTIVE-status checks, fixed search paths and browser-role EXECUTE denial.
-  - [ ] Pass exact-head Auth Service CI on PR #70.
+  - [x] Pass exact-head Auth Service CI on PR #70 at `d769ceb23b14e1b160638320f56d088cdcd1f28e` ([run #40305791232](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40305791232)).
   - [ ] Keep live synthetic lifecycle integration blocked until the runtime/project target is authoritative and exact write authorization exists.
-- **Validation:** PR #70 contains only tests; no migration, schema, application runtime code, credential or account data is changed. Exact-head CI is pending at this checkpoint.
+- **Validation:** Exact-head Auth Service CI passed on PR #70 at `d769ceb23b14e1b160638320f56d088cdcd1f28e` ([run #40305791232](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40305791232)). PR #70 contains only tests; no migration, schema, application runtime code, credential or account data is changed. Live integration remains blocked.
 - **Dependencies:** AUTH-UM-000 and AUTH-UM-004 for end-to-end verification; the source-level test slice does not depend on live Supabase access.
 - **Risk:** Low for code behavior (test-only); do not mistake source-level contract tests for live integration evidence.
 - **Links:** [PR #70](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/70), [status-enforcement migration](../../supabase/migrations/20261026080831_auth_user_status_enforcement.sql), [auth-flow security tests](../../test/auth-flow-security.spec.ts).
