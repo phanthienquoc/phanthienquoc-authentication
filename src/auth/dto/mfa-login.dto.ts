@@ -1,8 +1,9 @@
-import { IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class MfaLoginDto {
-  @IsUUID()
-  userId!: string;
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  challengeToken!: string;
 
   @IsString()
   @Matches(/^\d{6}$/)
@@ -10,10 +11,12 @@ export class MfaLoginDto {
 }
 
 export class RecoveryLoginDto {
-  @IsUUID()
-  userId!: string;
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  challengeToken!: string;
 
   @IsString()
+  @MinLength(1)
   @MaxLength(64)
   code!: string;
 }
