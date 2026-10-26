@@ -194,6 +194,8 @@ Inspect actual tables, migrations, role claims, login/refresh/MFA/passkey paths,
 ### UM-1 — Secure admin API foundation (implemented)
 **Status:** UM-1A/UM-1B merged. The centralized deny-by-default AdminGuard, allowlisted read responses, typed server-side audit writer and RPC-only audit access are implemented and covered by service tests. Lifecycle mutations were held until the UM-2 authorization/recent-MFA/concurrency/audit gates passed.
 
+**Signup hardening follow-up:** The public DTO already excludes role and signup explicitly supplies `USER`; task `AUTH-UM-001A5` removes caller-controlled role input from the repository create contract and hardcodes `USER` at the persistence boundary. The code/test slice is in progress; exact-head CI and merge gate are pending.
+
 ### UM-2 — Account lifecycle
 
 **Status (2026-10-26): IMPLEMENTATION MERGED; UM-4 INTEGRATION BLOCKED.** UM-2A status enforcement is in ledger version `20261026080831 auth_user_status_enforcement`; suspension enforcement PR #61 is merged at `c88c4ad8f5e248a6a1da30ddc381da32a3c0097a`. Lifecycle API/UI PR #64 is merged at `2a233d1b45ed1d52adc2b91b8608dc686d24f9ec`. Source includes active-admin authorization, recent-MFA assurance, self-change and last-active-admin protections, advisory locking and atomic audit. End-to-end lifecycle integration is authorized against the owner-confirmed non-production target using isolated synthetic fixtures; never use real account rows.
