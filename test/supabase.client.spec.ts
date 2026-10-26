@@ -53,6 +53,7 @@ describe('SupabaseClientService.getRestSchemaPaths', () => {
       'Unable to inspect Supabase REST schema',
     );
   });
+
   it('caches successful schema paths for five minutes and refreshes after expiry', async () => {
     process.env.SUPABASE_URL = 'https://supabase.example';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-test-key';
@@ -72,6 +73,31 @@ describe('SupabaseClientService.getRestSchemaPaths', () => {
     now += 2 * 60 * 1000;
     await service.getRestSchemaPaths();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('coalesces concurrent schema discovery requests', async () => {
+    process.env.SUPABASE_URL = 'https://supabase.example';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-test-key';
+    let resolveResponse!: (response: Response) => void;
+    const responsePromise = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockReturnValue(responsePromise);
+    const service = new SupabaseClientService();
+
+    const firstRequest = service.getRestSchemaPaths();
+    const secondRequest = service.getRestSchemaPaths();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resolveResponse({
+      ok: true,
+      json: async () => ({ paths: { '/rpc/auth_rotate_refresh_session': {} } }),
+    } as Response);
+    const [firstPaths, secondPaths] = await Promise.all([firstRequest, secondRequest]);
+
+    expect(firstPaths.has('/rpc/auth_rotate_refresh_session')).toBe(true);
+    expect(secondPaths.has('/rpc/auth_rotate_refresh_session')).toBe(true);
+    expect(firstPaths).not.toBe(secondPaths);
   });
 
   it('does not cache failed schema requests', async () => {
