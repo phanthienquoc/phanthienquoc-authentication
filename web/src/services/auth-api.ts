@@ -58,15 +58,15 @@ export const authApi = {
   logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   status: () =>
     request<{ configured: boolean; database: string; passkeyConfigured: boolean }>("/auth/status"),
-  mfaLogin: (userId: string, code: string) =>
+  mfaLogin: (challengeToken: string, code: string) =>
     request<AuthResult>("/auth/mfa/login", {
       method: "POST",
-      body: JSON.stringify({ userId, code }),
+      body: JSON.stringify({ challengeToken, code }),
     }),
-  mfaRecovery: (userId: string, code: string) =>
+  mfaRecovery: (challengeToken: string, code: string) =>
     request<AuthResult>("/auth/mfa/recovery", {
       method: "POST",
-      body: JSON.stringify({ userId, code }),
+      body: JSON.stringify({ challengeToken, code }),
     }),
   adminUsers: (
     accessToken: string,
