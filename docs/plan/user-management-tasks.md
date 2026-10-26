@@ -137,19 +137,23 @@
 
 ### AUTH-UM-001B — Privileged audit persistence (UM-1 foundation)
 
-- **Priority/status:** P1 / BLOCKED on non-production schema validation.
-- **Evidence:** `supabase/migrations/`, `src/db/supabase.client.ts`, `src/auth/auth.repository.ts`; roadmap records no admin/audit table in the inspected live schema.
-- **Current behavior:** No admin audit table or atomic/reliable audit-write contract exists.
-- **Desired behavior:** Append-only audit events for successful and failed privileged operations with actor/provider, action, target/provider, timestamp, outcome and correlation/request ID; safe before/after metadata only.
+- **Priority/status:** P1 / IN PR — database table/RPC applied and verified at ledger versions `20261026035340 auth_admin_audit_events` and `20261026035431 auth_admin_audit_rpc_only_access`; source SQL and typed writer are on the current-master branch [PR #54](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/54).
+- **Evidence:** Pre-apply catalog found no audit table/RPC. Post-apply `list_migrations`, `to_regclass`, `to_regprocedure`, `pg_proc` ACL, and `has_table_privilege` checks confirm the table/RPC, signatures and grants. RPC is `SECURITY DEFINER` with fixed search_path; EXECUTE is granted to `service_role` and owner `postgres`. The audit table is RLS-enabled with no policies; `anon`, `authenticated`, and `service_role` have no direct table privileges.
+- **Current behavior:** Server-side append path exists in the connected database. `src/users/admin-audit.service.ts` forwards a typed allowlist to the RPC; the RPC validates action/outcome/reason/request-id fields and successful events require an existing legacy `ADMIN` actor. Existing User Management routes remain GET-only; this slice adds no role/status/session mutation endpoints.
+- **Desired behavior:** Append-only audit events for eventual successful/denied/failed legacy-admin operations, with actor/target IDs, action/outcome, timestamp, safe before/after role/status, enum reason code and validated request ID. Keep Keycloak identities separate.
 - **Acceptance criteria:**
-  - Additive, reviewed schema design validated only in an approved non-production environment.
-  - Server-only/service-role access; RLS and grants are explicitly checked.
-  - Audit failure behavior is explicit and tested before enabling mutation endpoints.
-  - No tokens, passwords, MFA secrets/recovery codes, passkey material or credential hashes are stored.
-- **Validation:** Non-production migration/schema test; audit insert/read authorization tests; failure injection; redaction tests.
-- **Dependencies:** AUTH-UM-000 and approved non-production Supabase environment.
-- **Risk:** High — missing or overexposed audit data weakens incident response and can leak security metadata.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+  - [x] Create an audit table with constrained actions/outcomes, safe role/status fields, no generic JSON/free-form metadata, and chronology indexes.
+  - [x] Expose validated writes through a SECURITY DEFINER RPC with fixed search_path and service_role-only EXECUTE.
+  - [x] Revoke direct table privileges from PUBLIC/anon/authenticated/service_role; preserve postgres owner access.
+  - [x] Add a typed writer that forwards only allowlisted metadata and normalizes DB errors.
+  - [x] Unit tests verify extra secret-like fields are not forwarded and RPC/transport errors are normalized.
+  - [ ] Run exact-head CI and inspect the migration/source diff after CI completes.
+  - [ ] Add non-production end-to-end integration coverage for audit success/failure and consistency with eventual mutations; no fake event was inserted just to test storage.
+  - [ ] Prove audit writes are atomic with each eventual mutation before creating mutation routes; no route is added in this slice.
+- **Validation:** Supabase migrations `20261026035340` and `20261026035431` returned success. Post-apply catalog confirms audit table + RPC, RLS/no policy, function ACL `postgres=X/postgres,service_role=X/postgres`, and no direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE for anon/authenticated/service_role. No account rows were read or changed. CI must pass on the exact PR #54 head.
+- **Dependencies:** AUTH-OPS-002 migration-history reconciliation; AUTH-UM-002 remains gated until status schema, suspension enforcement, authorization/concurrency checks and atomic audit behavior are implemented and tested.
+- **Risk:** High — audit records must not be forgeable or contain secrets. The application role cannot write/read the table directly and has only EXECUTE on the validated RPC.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [audit schema/RPC migration](../../supabase/migrations/20261026035340_auth_admin_audit_events.sql), [RPC-only grants migration](../../supabase/migrations/20261026035431_auth_admin_audit_rpc_only_access.sql), [PR #54](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/54).
 
 ### AUTH-UM-002 — Legacy account lifecycle API (UM-2)
 
