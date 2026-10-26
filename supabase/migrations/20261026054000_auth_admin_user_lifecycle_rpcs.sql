@@ -174,17 +174,32 @@ begin
   end if;
 
   if v_target.status = p_new_status then
-    perform public.auth_record_admin_audit_event(
-      v_actor.id, v_target.id, 'ADMIN_MUTATION_FAILED', 'FAILED',
-      null, null, null, null, p_reason_code, p_request_id
-    );
+    if p_new_status = 'SUSPENDED' then
+      -- Repeated suspension still clears any legacy session rows.
+      update public.refresh_sessions
+      set revoked_at = coalesce(revoked_at, now())
+      where user_id = v_target.id and revoked_at is null;
+      get diagnostics v_revoked_count = row_count;
+      if v_revoked_count > 0 then
+        perform public.auth_record_admin_audit_event(
+          v_actor.id, v_target.id, 'USER_SESSIONS_REVOKED', 'SUCCESS',
+          null, null, null, null, p_reason_code, p_request_id
+        );
+      end if;
+    end if;
+    if v_revoked_count = 0 then
+      perform public.auth_record_admin_audit_event(
+        v_actor.id, v_target.id, 'ADMIN_MUTATION_FAILED', 'FAILED',
+        null, null, null, null, p_reason_code, p_request_id
+      );
+    end if;
     return jsonb_build_object(
       'status', 'no_change',
       'user', jsonb_build_object(
         'id', v_target.id, 'email', v_target.email, 'role', v_target.role,
         'status', v_target.status, 'mfa_enabled', v_target.mfa_enabled
       ),
-      'revoked_sessions', 0
+      'revoked_sessions', v_revoked_count
     );
   end if;
 
@@ -211,6 +226,11 @@ begin
     get diagnostics v_revoked_count = row_count;
     v_action := 'USER_SUSPENDED';
   else
+    -- Do not restore sessions that may predate an out-of-band suspension.
+    update public.refresh_sessions
+    set revoked_at = coalesce(revoked_at, now())
+    where user_id = v_target.id and revoked_at is null;
+    get diagnostics v_revoked_count = row_count;
     v_action := 'USER_REACTIVATED';
   end if;
 
@@ -292,9 +312,9 @@ begin
 end;
 $$;
 
-revoke all on function public.auth_admin_update_user_role(uuid, uuid, text, text, text) from public, anon, authenticated;
-revoke all on function public.auth_admin_update_user_status(uuid, uuid, text, text, text) from public, anon, authenticated;
-revoke all on function public.auth_admin_revoke_user_sessions(uuid, uuid, text, text) from public, anon, authenticated;
+revoke all on function public.auth_admin_update_user_role(uuid, uuid, text, text, text) from public, anon, authenticated, service_role;
+revoke all on function public.auth_admin_update_user_status(uuid, uuid, text, text, text) from public, anon, authenticated, service_role;
+revoke all on function public.auth_admin_revoke_user_sessions(uuid, uuid, text, text) from public, anon, authenticated, service_role;
 
 grant execute on function public.auth_admin_update_user_role(uuid, uuid, text, text, text) to service_role;
 grant execute on function public.auth_admin_update_user_status(uuid, uuid, text, text, text) to service_role;

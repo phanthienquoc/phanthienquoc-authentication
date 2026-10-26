@@ -65,9 +65,20 @@ describe('AUTH-UM-002B lifecycle migration contract', () => {
     expect(migration).not.toMatch(/delete\s+from\s+public\.users/i);
   });
 
+  it('revokes stale sessions on repeated suspension and reactivation', () => {
+    const status = functionBody('auth_admin_update_user_status');
+    const noChange = status.indexOf('if v_target.status = p_new_status then');
+    const noChangeSessionRevoke = status.indexOf('update public.refresh_sessions', noChange);
+    const reactivationMarker = status.indexOf('Do not restore sessions that may predate an out-of-band suspension.');
+    const reactivationSessionRevoke = status.indexOf('update public.refresh_sessions', reactivationMarker);
+    expect(noChangeSessionRevoke).toBeGreaterThan(noChange);
+    expect(reactivationMarker).toBeGreaterThanOrEqual(0);
+    expect(reactivationSessionRevoke).toBeGreaterThan(reactivationMarker);
+  });
+
   it('grants only service_role execution to the three lifecycle RPCs', () => {
     for (const name of names) {
-      expect(migration).toMatch(new RegExp(`revoke all on function public\\.${name}\\([^;]+from public, anon, authenticated;`, 'i'));
+      expect(migration).toMatch(new RegExp(`revoke all on function public\\.${name}\\([^;]+from public, anon, authenticated, service_role;`, 'i'));
       expect(migration).toMatch(new RegExp(`grant execute on function public\\.${name}\\([^;]+to service_role;`, 'i'));
       expect(migration).not.toMatch(new RegExp(`grant execute on function public\\.${name}\\([^;]+to\\s+(public|anon|authenticated)\\s*;`, 'i'));
     }

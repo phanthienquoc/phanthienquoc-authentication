@@ -11,6 +11,10 @@ export class ListUsersDto {
   role?: 'USER' | 'ADMIN';
 
   @IsOptional()
+  @IsIn(['ACTIVE', 'SUSPENDED'])
+  status?: 'ACTIVE' | 'SUSPENDED';
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

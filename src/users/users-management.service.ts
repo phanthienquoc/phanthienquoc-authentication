@@ -14,6 +14,7 @@ type ManagedUserRow = {
   id: string;
   email: string;
   role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'SUSPENDED';
   mfa_enabled: boolean;
 };
 
@@ -48,11 +49,12 @@ export class UsersManagementService {
     try {
       let query = this.supabase.db
         .from('users')
-        .select('id,email,role,mfa_enabled', { count: 'exact' })
+        .select('id,email,role,status,mfa_enabled', { count: 'exact' })
         .order('email', { ascending: true })
         .range(from, to);
 
       if (input.role) query = query.eq('role', input.role);
+      if (input.status) query = query.eq('status', input.status);
       if (input.query) query = query.ilike('email', `%${input.query}%`);
 
       const result = await query.returns<ManagedUserRow[]>();
@@ -81,7 +83,7 @@ export class UsersManagementService {
     try {
       const result = await this.supabase.db
         .from('users')
-        .select('id,email,role,mfa_enabled')
+        .select('id,email,role,status,mfa_enabled')
         .eq('id', id)
         .maybeSingle<ManagedUserRow>();
       data = result.data;
@@ -252,6 +254,7 @@ export class UsersManagementService {
       id: row.id,
       email: row.email,
       role: row.role,
+      status: row.status,
       mfaEnabled: row.mfa_enabled,
     };
   }
