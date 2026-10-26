@@ -1,11 +1,16 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Headers, HttpCode, HttpStatus, Post, Req, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
+import type { Response } from 'express';
+import { AuthService } from '../auth.service';
 import { KeycloakAuthGuard, type KeycloakRequest } from './keycloak-auth.guard';
 import { KeycloakIdentityService } from './keycloak-identity.service';
 
 @Controller('oidc')
 @UseGuards(KeycloakAuthGuard)
 export class KeycloakController {
-  constructor(private readonly identities: KeycloakIdentityService) {}
+  constructor(
+    private readonly identities: KeycloakIdentityService,
+    private readonly auth: AuthService,
+  ) {}
 
   @Get('me')
   async me(@Req() request: KeycloakRequest) {
