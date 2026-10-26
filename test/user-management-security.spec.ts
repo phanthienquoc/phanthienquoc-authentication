@@ -27,6 +27,7 @@ describe('User-management security contracts', () => {
         id: legacyUser.id,
         email: legacyUser.email,
         role: legacyUser.role,
+        status: legacyUser.status,
         mfa_enabled: legacyUser.mfaEnabled,
         password_hash: legacyUser.passwordHash,
         mfa_secret_encrypted: legacyUser.mfaSecretEncrypted,
@@ -48,10 +49,11 @@ describe('User-management security contracts', () => {
         id: legacyUser.id,
         email: legacyUser.email,
         role: legacyUser.role,
+        status: legacyUser.status,
         mfaEnabled: true,
       },
     });
-    expect(query.select).toHaveBeenCalledWith('id,email,role,mfa_enabled');
+    expect(query.select).toHaveBeenCalledWith('id,email,role,status,mfa_enabled');
   });
 
   it('returns only allowlisted fields from the paginated admin list', async () => {
@@ -66,6 +68,7 @@ describe('User-management security contracts', () => {
           id: 'user-2',
           email: 'person@example.com',
           role: 'USER',
+          status: 'SUSPENDED',
           mfa_enabled: true,
           password_hash: 'must-not-escape',
           mfa_secret_encrypted: 'must-not-escape',
@@ -82,6 +85,7 @@ describe('User-management security contracts', () => {
     await expect(service.list({
       query: 'person',
       role: 'USER',
+      status: 'SUSPENDED',
       page: 2,
       limit: 50,
     } as ListUsersDto)).resolves.toEqual({
@@ -89,6 +93,7 @@ describe('User-management security contracts', () => {
         id: 'user-2',
         email: 'person@example.com',
         role: 'USER',
+        status: 'SUSPENDED',
         mfaEnabled: true,
       }],
       page: 2,
@@ -98,10 +103,11 @@ describe('User-management security contracts', () => {
     });
 
     expect(supabase.db.from).toHaveBeenCalledWith('users');
-    expect(query.select).toHaveBeenCalledWith('id,email,role,mfa_enabled', { count: 'exact' });
+    expect(query.select).toHaveBeenCalledWith('id,email,role,status,mfa_enabled', { count: 'exact' });
     expect(query.order).toHaveBeenCalledWith('email', { ascending: true });
     expect(query.range).toHaveBeenCalledWith(50, 99);
     expect(query.eq).toHaveBeenCalledWith('role', 'USER');
+    expect(query.eq).toHaveBeenCalledWith('status', 'SUSPENDED');
     expect(query.ilike).toHaveBeenCalledWith('email', '%person%');
   });
 
