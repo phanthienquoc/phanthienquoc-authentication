@@ -189,6 +189,27 @@ describe('Authentication flow security contracts', () => {
     expect(JSON.stringify(result)).not.toContain('presented-refresh-token');
   });
 
+  it('rejects refresh for a suspended account and clears the refresh cookie', async () => {
+    const suspendedUser = { ...legacyUser, status: 'SUSPENDED' as const };
+    const { service, repository, jwt } = makeAuthService();
+    repository.rotateRefreshSession.mockResolvedValue({
+      status: 'rotated',
+      user: suspendedUser,
+      familyId: 'family-1',
+    });
+    const { response, cookie } = makeResponse();
+
+    await expect(service.refresh('presented-refresh-token', { response }))
+      .rejects.toThrow('Refresh session invalid or expired');
+
+    expect(cookie).toHaveBeenCalledWith(
+      'tce_refresh_token',
+      '',
+      expect.objectContaining({ httpOnly: true, maxAge: 0, path: '/auth' }),
+    );
+    expect(jwt.issue).not.toHaveBeenCalled();
+  });
+
   it('clears the refresh cookie when token reuse is detected', async () => {
     const { service, repository } = makeAuthService();
     repository.rotateRefreshSession.mockResolvedValue({
