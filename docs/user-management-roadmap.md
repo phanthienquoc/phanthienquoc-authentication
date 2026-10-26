@@ -159,6 +159,8 @@ Implement principal resolution and a centralized admin guard, allowlisted respon
 
 **Status (authoritative 2026-10-26 16:13 +07): IMPLEMENTED / INTEGRATION BLOCKED.** UM-2A status enforcement and UM-2B lifecycle source/API/UI are merged (PR #64 at `2a233d1b45ed1d52adc2b91b8608dc686d24f9ec`). The remote ledger includes `20261026084506 auth_admin_user_lifecycle_rpcs`; live catalog confirms all three lifecycle RPCs. The `env=prod` management-API application event at `2026-10-26T08:45:06.114Z` remains unexplained; source merge does not prove who initiated the original apply or exact SQL parity. Do not replay or call lifecycle RPCs against the connected private-production project.
 
+**Session-revocation boundary:** `auth_admin_revoke_user_sessions` revokes persisted `refresh_sessions`; it does not revoke already-issued stateless access JWTs. `JwtService` defaults to a 900-second TTL and this repository has no `jti` denylist. Consumers that validate only signature/expiry may accept an already-issued token until expiry; `/auth/me` and the database-backed AdminGuard re-check current user/status, while downstream behavior depends on the integration contract. Confirm whether this bounded window is acceptable before claiming immediate global session invalidation.
+
 Implement list/detail, role change, suspension/reactivation and session revocation only after the schema and environment gates clear. Additive migrations require an explicitly approved safe non-production target. Ensure suspended users cannot log in, refresh, complete MFA or authenticate through supported legacy flows. Prevent self-role-change and last-admin lockout.
 
 ### UM-3 — Admin UI
