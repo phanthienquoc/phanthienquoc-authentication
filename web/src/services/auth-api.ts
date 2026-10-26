@@ -28,7 +28,32 @@ export type ManagedUser = {
   id: string;
   email: string;
   role: "USER" | "ADMIN";
+  status: "ACTIVE" | "SUSPENDED";
   mfaEnabled: boolean;
+};
+
+export type UserMutationReasonCode =
+  | "ADMIN_REQUEST"
+  | "SECURITY_REVIEW"
+  | "COMPROMISED_ACCOUNT"
+  | "POLICY_VIOLATION"
+  | "OTHER";
+
+export type AdminUserRoleMutationResult = {
+  result: "updated" | "no_change";
+  user: ManagedUser;
+};
+
+export type AdminUserStatusMutationResult = {
+  result: "updated" | "no_change";
+  user: ManagedUser;
+  revokedSessions: number;
+};
+
+export type AdminUserSessionRevocationResult = {
+  result: "revoked";
+  user: { id: string; email: string };
+  revokedSessions: number;
 };
 
 export type ManagedUserPage = {
@@ -78,5 +103,37 @@ export const authApi = {
   adminUser: (accessToken: string, id: string) =>
     request<{ user: ManagedUser }>(`/api/admin/users/${encodeURIComponent(id)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+  adminUpdateUserRole: (
+    accessToken: string,
+    id: string,
+    role: "USER" | "ADMIN",
+    reasonCode: UserMutationReasonCode,
+  ) =>
+    request<AdminUserRoleMutationResult>(`/api/admin/users/${encodeURIComponent(id)}/role`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ role, reasonCode }),
+    }),
+  adminUpdateUserStatus: (
+    accessToken: string,
+    id: string,
+    status: "ACTIVE" | "SUSPENDED",
+    reasonCode: UserMutationReasonCode,
+  ) =>
+    request<AdminUserStatusMutationResult>(`/api/admin/users/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ status, reasonCode }),
+    }),
+  adminRevokeUserSessions: (
+    accessToken: string,
+    id: string,
+    reasonCode: UserMutationReasonCode,
+  ) =>
+    request<AdminUserSessionRevocationResult>(`/api/admin/users/${encodeURIComponent(id)}/revoke-sessions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ reasonCode }),
     }),
 };
