@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 16:10 +07:00  
+**Last audited:** 2026-10-26 16:40 +07:00
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -16,7 +16,7 @@
 - Squash-merge only after exact-head required checks pass, mergeability and acceptance criteria are verified, and the diff has been inspected for security/regressions.
 - Owner-authorized migration scope (2026-10-26): the narrow Auth RPC-contract and Auth-table browser-grant migrations documented below were applied via the connected Supabase tools and verified read-only. Continue scoped schema/migration work as required by this User Management queue; do not infer approval for resets/deletes, Supabase branch merges, live account-data mutations, function deployment, production app release, or unrelated shared-project schema changes. A skipped check is not a passed test.
 
-## Latest owner-confirmed checkpoint — 2026-10-26 15:20 +07:00
+## Historical owner-confirmed checkpoint — 2026-10-26 15:20 +07:00
 
 - **Latest owner instruction (2026-10-26):** Treat the shared Supabase project `gtqovpusfyyvxpeezxlo` as **non-production** and proceed with routine scoped schema/migration work, tests, and repository implementation without asking for another confirmation. Do not create a Supabase branch. Platform metadata remains `ACTIVE_HEALTHY` at project level and `MIGRATIONS_FAILED` on its only listed non-persistent `main` / Git `master` branch; record this as migration-state drift, not as overriding the owner's environment classification. Production application release, live trading, destructive resets/deletes, and unrelated schema changes remain outside the task scope.
 - Authentication PR #55 was squash-merged at 7d98c9b953acdd5e180b9ac2fc49ad4dba7b6bb7; master was verified at that SHA.
@@ -24,7 +24,7 @@
 - A clean dedicated UM-2A branch now starts from the merged default tree, so the PR will contain only the status-enforcement slice rather than replaying the already-merged MFA diff. Its migration source path is aligned to the actual live ledger version with SQL bytes unchanged.
 - Supabase's GitHub integration repository/deploy toggle is not exposed by the connected project metadata tools. Do not claim independent API verification of that setting. No Supabase branch was created; no account rows, live lifecycle mutations, deployment or trading actions were performed.
 
-## Latest lifecycle migration apply checkpoint — 2026-10-26 15:50 +07:00
+## Historical lifecycle migration apply checkpoint — 2026-10-26 15:50 +07:00
 
 - The user directed normal Supabase migration execution and explicitly said not to create a Supabase branch. No Supabase branch was created.
 - Applied the exact SQL from the inspected Auth repository lifecycle migration. Supabase returned `success: true`; `list_migrations` now records `20261026084506 auth_admin_user_lifecycle_rpcs`.
@@ -34,7 +34,7 @@
 - No account rows were read or changed; no app release/deployment, function deployment, or trading action occurred. Remaining tasks are exact-head CI/browser tests, final security diff inspection, mergeability check and pre-merge side-effect review.
 
 
-## Latest UM-2B merge and Supabase evidence — 2026-10-26 16:15 +07:00
+## Historical UM-2B merge and Supabase evidence — 2026-10-26 16:15 +07:00
 
 - Lifecycle API/UI PR #64 was squash-merged at `2a233d1b45ed1d52adc2b91b8608dc686d24f9ec`; a compare against `master` reports identical SHA. Exact-head Auth Service CI [#40296896614](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40296896614) and Auth Web CI [#40296896540](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40296896540) passed, including browser tests. The application release workflow is manual-dispatch-only and was not dispatched.
 - The scoped lifecycle migration was applied at the user's direction through the connected Supabase migration tool, which returned success; ledger version `20261026084506 auth_admin_user_lifecycle_rpcs` and function signatures/ACLs were reverified read-only. No Supabase branch was created, and no user/account rows were read or mutated.
@@ -43,6 +43,16 @@
 - AUTH-OPS-003 tracks this log/source/ledger reconciliation; AUTH-OPS-004 tracks 36 PostgREST root-path timeout events. PR #63 has a low-risk cache mitigation with prior exact-head CI passing, but it must be ported to current master before merge.
 - Historical remote-only migrations `20261014024759`, `20261014130516`, and `20261014131151`, and the Keycloak version mismatch remain open under AUTH-OPS-002/AUTH-UM-000. No new migration source was reconstructed from names or catalog definitions.
 
+
+## Read-only live contract checkpoint — 2026-10-26 16:40 +07:00
+
+- **Project/environment:** `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, `ap-southeast-1`, PostgreSQL 17.6.1, API `ACTIVE_HEALTHY`; only listed branch is non-persistent `main` / Git `master`, ID `5132b831-8223-4dc4-8f39-707415c96f1b`, status `MIGRATIONS_FAILED`. That same ID appears in migration-executor logs. Authentication docs say owner-confirmed non-production; TCE queue has conflicting private-production wording; log attributes are tagged `env=prod`. Treat the environment/runtime mapping as unresolved and keep all Supabase work read-only.
+- **Schema/grants:** `public.users.status` exists as non-null `text` default `ACTIVE`. Eight Auth tables are RLS-enabled with no policies returned; no direct `anon`/`authenticated` table grants were found. The existing server-side service-role client remains the only application DB path. `public.auth_keycloak_identities` remains a separate mapping; the operational `keycloak` schema is not a user-management mutation target.
+- **Lifecycle RPC parity:** All three live lifecycle bodies match `20261026084506_auth_admin_user_lifecycle_rpcs.sql` after whitespace normalization. Signatures: `auth_admin_update_user_role(uuid,uuid,text,text,text) RETURNS jsonb`; `auth_admin_update_user_status(uuid,uuid,text,text,text) RETURNS jsonb`; `auth_admin_revoke_user_sessions(uuid,uuid,text,text) RETURNS jsonb`. All are `SECURITY DEFINER`, owner `postgres`, fixed `search_path=pg_catalog, public, pg_temp`, EXECUTE only for `service_role`/owner.
+- **Application contract:** `src/auth/auth.repository.ts`, `src/users/users-management.service.ts`, and `src/users/admin-audit.service.ts` call the current refresh, MFA/passkey, lifecycle and audit RPCs using migration argument names; readiness tests list the same RPC paths. Live signatures/results and grants match the checked-in Auth contract. Legacy `rotate_refresh_token` and `consume_recovery_code` remain separate.
+- **Ledger/advisors:** Ledger count 77; exact source files for remote versions `20261014024759`, `20261014130516`, `20261014131151` remain absent from both authorized repositories, and Keycloak persistence timestamp/name mismatch remains unresolved. Security advisor: 34 RLS-enabled/no-policy, 1 SECURITY DEFINER view, 8 mutable search paths, 43 anon and 43 authenticated GraphQL-exposure findings, leaked-password protection disabled. Performance advisor: 15 unindexed FKs, 1 no-primary-key table, 137 unused indexes. Counts are project-wide.
+- **Logs after the cache PR merge:** `09:31–09:40Z` yielded 9 `env=prod` PostgREST path `/` timeout events through `09:39:58.262274Z` and 2 migration-executor missing-local-version errors, latest `09:35:29.544322Z`. PR #63 is merged, but release remains manual-dispatch-only; no production image was released by this run. The cache has not been validated against production traffic.
+- **Validation/safety:** Current official Supabase GitHub integration, API security and RLS docs were searched. Read-only inspection only; no migration, schema/data write, branch creation/reset/merge, Edge Function deployment, release or live account/trading action occurred.
 
 ## Active tasks
 
@@ -58,59 +68,55 @@
 
 ### AUTH-OPS-003 — Reconcile the production-tagged lifecycle migration event with the authorized apply
 
-- **Priority/status:** P1 / IN PROGRESS — source/ledger parity and the authorized migration apply are now reconciled; historical remote-only migrations and the integration configuration remain open. The earlier statement that this automation did not apply the lifecycle migration is superseded.
-- **Evidence:** Connected project ref `gtqovpusfyyvxpeezxlo`; ledger version `20261026084506 auth_admin_user_lifecycle_rpcs`; exact checked-in SQL at `supabase/migrations/20261026084506_auth_admin_user_lifecycle_rpcs.sql`; bounded log record noted in [PR #62](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/62).
-- **Current behavior:** The connected Supabase migration tool was explicitly invoked in this task at the owner's direction and returned success for the exact lifecycle SQL. The remote ledger then recorded version `20261026084506`, and read-only catalog inspection confirmed the three routine signatures, fixed search path and server-only EXECUTE grants. A bounded management-API log record is tagged `env=prod` at `2026-10-26T08:45:06.114Z`, consistent in time/SQL with the authorized tool call. The available aggregate did not expose an actor identity, so it does not prove a separate unknown actor or an unauthorized apply. Older docs describing the live apply as unperformed are stale.
-- **Desired behavior:** Keep the authorized apply, exact source SQL and live migration ledger aligned; keep an auditable record of the production-tagged event without misattributing it.
+- **Priority/status:** P0 / BLOCKED — lifecycle source/catalog parity is reconciled, but migration-executor errors continue on the only listed `main` branch and remote-only migration provenance remains unresolved. Current task scope is read-only.
+- **Evidence:** Project ref `gtqovpusfyyvxpeezxlo`; ledger `20261026084506 auth_admin_user_lifecycle_rpcs`; migration source `supabase/migrations/20261026084506_auth_admin_user_lifecycle_rpcs.sql`; read-only catalog/ACL and bounded logs.
+- **Current behavior:** All three live lifecycle function bodies match checked-in source after whitespace normalization; signatures, fixed search path, SECURITY DEFINER, owner and EXECUTE ACLs match. The `env=prod` log event at `2026-10-26T08:45:06.114Z` is consistent with the earlier authorized exact migration apply recorded in the historical checkpoint. Fresh `workflow_run_logs` show `Remote migration versions not found in local migrations directory.` at `09:35:29.544322Z` on the branch ID matching the only listed `main` branch. The missing local versions remain unresolved.
+- **Desired behavior:** Keep live source/ledger/call-site contracts aligned and reconcile historical remote-only migrations only from authoritative source history.
 - **Acceptance criteria:**
-  - [x] Record the owner's explicit instruction to run the scoped migration and not create a Supabase branch.
-  - [x] Verify the apply tool returned success and the ledger records `20261026084506`.
-  - [x] Confirm the exact source SQL in the authorized repository matches the applied migration body and the catalog function signatures/ACLs.
-  - [x] Correct the stale statement that this automation did not perform the apply.
-  - [ ] Verify the Supabase GitHub integration repository and deploy-to-production configuration through an authorized configuration surface.
-  - [ ] Reconcile the remaining remote-only migration versions and Keycloak version mismatch separately.
-- **Validation:** `list_migrations` contains the lifecycle version; read-only catalog SQL confirms expected RPCs/ACLs. No user rows were read or mutated, and no app image release or function deploy was performed.
-- **Dependencies:** AUTH-OPS-002, access to authoritative migration/integration configuration.
-- **Risk:** High — non-production project metadata and migration ledger/source drift need durable provenance. The user expressly authorized this scoped migration apply; do not infer authorization for unrelated schema changes or live account mutation.
-- **Links:** [PR #64 merged](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/64), [applied migration source](../../supabase/migrations/20261026084506_auth_admin_user_lifecycle_rpcs.sql), [PR #62 prior evidence](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/62).
+  - [x] Confirm lifecycle ledger version and exact source/live body parity.
+  - [x] Confirm lifecycle signatures, fixed search path and service-role/owner-only EXECUTE.
+  - [x] Correlate the earlier migration event with the previously authorized apply without attributing it to an unknown actor.
+  - [ ] Recover source history for `20261014024759`, `20261014130516`, and `20261014131151`; reconcile Keycloak version mismatch.
+  - [ ] Verify the GitHub integration/deploy target through an authoritative configuration surface before any further merge/migration.
+- **Validation:** Read-only `list_migrations`, `list_tables(verbose=true)`, catalog/ACL SQL, advisors and bounded logs. No migration or schema/data mutation in this run.
+- **Dependencies:** AUTH-UM-000; authoritative migration/integration configuration.
+- **Risk:** Critical — do not replay/apply migrations or merge a migration-bearing PR under the current read-only instruction.
+- **Links:** [PR #64 merged](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/64), [lifecycle migration](../../supabase/migrations/20261026084506_auth_admin_user_lifecycle_rpcs.sql), [roadmap](../user-management-roadmap.md).
 
 ### AUTH-OPS-004 — Investigate PostgREST root-path timeout burst
 
-- **Priority/status:** P1 / MITIGATION CANDIDATE — existing PR #63 has passing Auth Service CI but remains draft/unmerged and is based before the latest lifecycle merge; port to a clean branch from current master and re-run checks.
-- **Evidence:** The bounded unified-log query noted in PR #62 reported 36 `postgrest_logs` entries between `2026-10-26T08:00:00Z` and `08:49:00Z` with `Warp server error: Thread killed by timeout manager`, path `/`, tagged `env=prod`; latest at `08:47:56.588Z`. Source paths `GET /auth/status` and `GET /ready` both call `AuthRepository.ready()`, which requests the PostgREST `/rest/v1/` OpenAPI document.
-- **Current behavior:** The timeout burst is recorded. Repeated readiness metadata requests are a plausible contributor, not a proven root cause because request frequency and direct request/log correlation are unknown. PR #63 adds a five-minute cache of successful schema path discovery, coalesces concurrent requests, clones cached sets and never caches failures; it does not eliminate per-request DB table probes.
-- **Desired behavior:** Validate a bounded cache mitigation with tests on current master, then correlate future logs/traffic without generating production load.
+- **Priority/status:** P1 / MITIGATION MERGED — PR #63 merged at `df6d1b9766e0fd97ea69035bc4a0ba08ae7dff2e`; the five-minute successful OpenAPI-cache mitigation is on master, but it has not been deployed or validated against production traffic.
+- **Evidence:** `src/db/supabase.client.ts`, `src/auth/auth.repository.ts`, `test/supabase.client.spec.ts`; bounded Supabase logs; [PR #63](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/63).
+- **Current behavior:** The cache coalesces concurrent schema discovery, caches only successful path sets for five minutes, and retries failures. Post-merge bounded logs from `09:31–09:40Z` still show 9 `env=prod` PostgREST path `/` timeout events through `09:39:58.262274Z`. The Auth release workflow is `workflow_dispatch`-only, so master CI did not deploy the mitigation. The cache may help once released, but it is not proven to be the root-cause fix.
+- **Desired behavior:** Keep the low-risk mitigation covered by tests, then evaluate post-deployment bounded aggregate logs only after a separately authorized release; do not generate production load.
 - **Acceptance criteria:**
-  - [x] Record bounded timeout evidence and confirm source call sites.
-  - [x] Existing PR #63 tests cover TTL expiry, concurrent coalescing and retry after a failed schema request; exact-head service CI passed.
-  - [ ] Rebase/port the mitigation to a clean branch at current master and rerun exact-head Auth Service CI.
-  - [ ] Evaluate post-merge bounded aggregate logs to see whether timeout events decrease; do not claim root cause without evidence.
-- **Validation:** Existing PR #63 exact head `98c2a9cefbaddf6700a4bc3f02a18bcf72130b0f` passed runs [#40296248881](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40296248881) and [#40296256113](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40296256113). Supabase Preview was skipped; the change adds no migration or RPC invocation.
-- **Dependencies:** None for code mitigation; environment and integration settings remain separately recorded in AUTH-OPS-002.
-- **Risk:** Medium — readiness endpoint latency may affect health checks, but the causal link is not proven.
-- **Links:** [PR #63](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/63), [Auth client source](../../src/db/supabase.client.ts).
-
+  - [x] Record timeout evidence and source call sites.
+  - [x] Pass TTL expiry, concurrent coalescing and retry-after-failure tests on PR #63.
+  - [x] Verify Auth Service CI passed on merge commit and current master.
+  - [ ] Obtain exact release authorization and verify deployment separately before post-release observation.
+  - [ ] Correlate bounded logs after a confirmed release before claiming reduced timeouts.
+- **Validation:** PR #63 exact-head CI runs [#40296248881](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40296248881), [#40296256113](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40296256113); merge CI [#40300171706](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40300171706); current-master CI [#40300658183](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40300658183).
+- **Dependencies:** None for merged code; release authorization for production validation.
+- **Risk:** Medium — readiness latency may affect health checks; root cause remains unproven.
+- **Links:** [PR #63](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/63), [Auth client](../../src/db/supabase.client.ts).
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
-- **Priority/status:** P0 / PARTIALLY RECONCILED — the four source-required RPCs and minimal refresh projection are tracked on `master` (source commit `8da33e3e27e72ff09f01c4f6fcd388bcb1adae3d`) and their current signatures/ACLs were reverified read-only on 2026-10-26. Three remote-only migration versions and the Keycloak version mismatch remain unresolved; `public.users.status` is absent. UM-2 lifecycle integration validation can proceed on the owner-confirmed non-production target; historical migration provenance and Keycloak version mismatch remain open.
-- **Evidence:** Read-only live catalog findings in `docs/user-management-roadmap.md`; `src/auth/auth.repository.ts`; `src/auth/passkey.repository.ts`; `src/db/supabase.client.ts`; `supabase/migrations/20261012000000_auth_persistence_rpcs.sql`.
-- **Current behavior (updated after migration):** Supabase `apply_migration` succeeded for `auth_persistence_rpc_contract_reconcile`; the ledger includes version `20261026030920`. Read-only catalog queries confirm `auth_replace_mfa_recovery_codes(uuid,text[]) RETURNS void`, `auth_consume_mfa_recovery_code(uuid,text) RETURNS boolean`, `auth_consume_passkey_challenge(text,text) RETURNS jsonb`, and `auth_rotate_refresh_session(text,uuid,text,timestamptz,text,text) RETURNS jsonb`. All four are `SECURITY DEFINER`, use a fixed `search_path`, revoke execution from `PUBLIC`, `anon`, and `authenticated`, and grant execution to `service_role` (owner `postgres` retains execute). Refresh rotation returns a minimal user projection without password hashes or encrypted MFA secrets. The immediate source/live RPC absence is resolved; the TypeScript projection is tracked on `master` at `8da33e3e27e72ff09f01c4f6fcd388bcb1adae3d`. Three remote-only migration versions and the Keycloak version mismatch remain unresolved.
-- **Post-migration verification (2026-10-26T03:09Z):** `list_migrations` returned `20261026030920 auth_persistence_rpc_contract_reconcile`; a separate `pg_proc`/ACL query returned all four signatures and `SECURITY DEFINER=true`, with EXECUTE for `postgres`/`service_role` only. Branch metadata still says `MIGRATIONS_FAILED` despite the new ledger row and present functions, so that status is inconsistent with the observed apply/catalog result; do not treat it as proof the apply failed. No account rows were read and no user/account data was changed.
-- **Read-only log signal (2026-10-26, last 24 hours):** A unified-log aggregate returned a count of 1 in `postgres_logs` for each of the four source-required RPC names when paired with an error-pattern match (`does not exist`, SQLSTATE `42883`, or `permission denied`); corresponding `postgrest_logs` counts were 0. The query returned aggregate counts only and did not inspect raw payloads or caller identity. This corroborates contract risk but does not establish which deployed caller emitted the records.
-- **Historical pre-migration catalog snapshot (2026-10-26T02:06Z):** The sole connected Supabase project is ref `gtqovpusfyyvxpeezxlo` (`ACTIVE_HEALTHY`), but its only listed non-persistent branch `main`/Git `master` is `MIGRATIONS_FAILED`; it is not an approved non-production target. The runtime URL remains unverified because `.env.example` is a placeholder and secret values are not exposed. Remote ledger contains `20261014024759 restrict_auth_rpc_execution`, `20261014130516 keycloak_runtime_schema`, `20261014131151 keycloak_runtime_login_role`, `20261020234922 keycloak_identity_persistence`, but not `20261012000000_auth_persistence_rpcs`. Required `auth_rotate_refresh_session`, `auth_replace_mfa_recovery_codes`, `auth_consume_mfa_recovery_code`, and `auth_consume_passkey_challenge` remain absent. Only legacy `rotate_refresh_token(p_token_hash text, p_new_token_hash text, p_new_expires_at timestamptz, p_ip inet, p_user_agent text)` and `consume_recovery_code(p_user_id uuid, p_code_hash text)` exist; both are `SECURITY DEFINER`, EXECUTE only by `postgres`/`service_role`, and have incompatible signatures/results. Catalog confirmed RLS + zero policies on all six auth tables; direct browser-role SELECT/INSERT/UPDATE/DELETE/TRUNCATE grants remain on the five legacy auth tables but not `auth_keycloak_identities`. No account rows were read and no write was performed.
-- **Desired behavior:** Keep the applied RPC signatures, service-role-only grants and minimal refresh projection synchronized between the database, tracked migration source, and TypeScript call sites. Reconcile remaining remote-only migration provenance separately; do not infer their contents.
-- **Historical pre-migration provenance evidence (2026-10-26, before the authorized RPC apply):** Supabase migration metadata lists the remote versions above, but GitHub code search and path-specific commit history across both authorized repositories contain no matching files for `20261014024759_restrict_auth_rpc_execution.sql`, `20261014130516_keycloak_runtime_schema.sql`, or `20261014131151_keycloak_runtime_login_role.sql`. The live ledger is therefore drifted in both directions: it records those remote migrations plus Keycloak identity persistence at a different version, while it does not record the checked-in auth-persistence RPC migration. Do not synthesize migration contents from names, current grants or function definitions. The connected Supabase branch metadata reports one non-persistent `main` branch with `MIGRATIONS_FAILED` (preview status `ACTIVE_HEALTHY`); this is not proof of an approved test target. Only catalog metadata/function definitions were read; no table rows, writes, resets, rebases or migrations were performed. Project-ref matching remains unverified from repository config: `.env.example` contains only `SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co`, and the runtime URL value is not visible in checked-in files. `list_projects` returned the sole connected project `phanthienquoc's Project` (ref `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, region `ap-southeast-1`, project status `ACTIVE_HEALTHY`); this is the previously documented shared/live project, not an approved non-production target. No Supabase branch was created and no migration, schema/data write, reset, rebase, merge or function deployment was attempted. Official Supabase [Branching documentation](https://supabase.com/docs/guides/deployment/branching) warns that a connected GitHub integration can deploy on commits pushed to its branch and that merging into the main project runs deployment steps including pending migration application. The current `Supabase Preview` check is `skipped` because this Git branch is not associated with a Supabase Branch. Since the connected project's repo mapping and main-push integration target remain unverified, keep this PR open even though it changes only documentation; do not merge until the deployment target/behavior is verified safe.
+- **Priority/status:** P0 / PARTIALLY RECONCILED — live schema, current RPC signatures/ACLs and lifecycle source parity are verified; remote-only migration provenance, Keycloak version mismatch, and runtime/environment mapping remain unresolved.
+- **Evidence:** Read-only `list_projects/get_project`, `list_tables(verbose=true)`, `list_migrations`, `pg_proc`/ACL SQL, advisors/logs; `src/auth/auth.repository.ts`, `src/auth/passkey.repository.ts`, `src/users/users-management.service.ts`, `src/users/admin-audit.service.ts`, `src/db/supabase.client.ts`; tracked `supabase/migrations/`.
+- **Current behavior:** `public.users.status` exists as non-null text default `ACTIVE`. Live `auth_create_refresh_session`, `auth_rotate_refresh_session`, recovery/passkey/MFA challenge routines, audit RPC and the three lifecycle RPCs have expected source contracts. All inspected Auth RPCs are SECURITY DEFINER with fixed search paths and EXECUTE limited to `service_role` plus owner `postgres`; browser roles have no direct Auth-table grants. The three lifecycle bodies match source. Exact remote versions `20261014024759 restrict_auth_rpc_execution`, `20261014130516 keycloak_runtime_schema`, and `20261014131151 keycloak_runtime_login_role` have no corresponding exact source file in either authorized repository; `20261020234922 keycloak_identity_persistence` has a timestamp/name mismatch with the checked-in older source.
+- **Desired behavior:** Keep database, migration source and application RPC argument/result contracts synchronized. Preserve legacy NestJS accounts separately from Keycloak identities; do not add direct Keycloak-schema access or an Admin API adapter without separate approval.
 - **Acceptance criteria:**
-  - [ ] Identify the authoritative source/revision for every live auth RPC and reconcile it with repository migrations.
-  - [x] Apply and verify the four existing source-required RPC contracts on the connected Supabase project; read-only catalog confirms signatures and service-role-only grants.
-  - [x] Add a non-mutating readiness/contract check that fails clearly when required RPCs are absent — [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27), merged at `94341f8535a409dd2215d8f5891969f66b3a496d`.
-  - [x] Record read-only live migration-ledger, function signature/ACL, table/RLS and grant evidence without reading account rows or mutating the shared project.
-  - [x] Record recovery options; do not reset, merge, rebase or migrate the shared live project.
-- **Historical pre-migration validation record:** PR #27 exact tested head `6c5d6ee9d524ee365a07111a7ee04aa4056548ed`; [auth-service CI #40213420324](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40213420324) passed tests, typecheck, build and container build. Read-only catalog queries on 2026-10-26 confirmed the live table columns, RLS/policy state, direct table grants and legacy function signatures/ACLs without reading account rows. At that pre-migration checkpoint, the source/live RPC mismatch was confirmed. The Supabase App check on PR #40 merge failed with `Remote migration versions not found in local migrations directory`; the non-persistent branch reported `MIGRATIONS_FAILED`. No migration had been applied at that earlier checkpoint.
-- **Dependencies:** Matching source migration and TypeScript contract test are on `master`; remote-only migration provenance and Keycloak version reconciliation remain open. Account-status schema and suspension enforcement are the next UM-2 prerequisites; the server-issued MFA challenge remains in blocked PR #55.
-- **Risk:** Critical — refresh rotation, MFA recovery-code operations and passkey challenge consumption may fail if source and live schema diverge. Readiness now fails closed instead of falsely reporting table-only readiness.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #27](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/27), [historical auth RPC migration](../../supabase/migrations/20261012000000_auth_persistence_rpcs.sql), [applied contract reconciliation migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql).
+  - [x] Confirm live `users.status` and lifecycle RPC signatures/privileges.
+  - [x] Match lifecycle function bodies to migration source and application call-site argument names.
+  - [x] Verify refresh, audit and MFA/passkey RPC signatures/ACLs read-only.
+  - [ ] Recover authoritative source history for remote-only versions and reconcile Keycloak timestamp mismatch.
+  - [ ] Resolve environment-classification conflict and verify runtime URL-to-ref/GitHub integration mapping.
+  - [ ] Complete UM-4 integration only on an explicitly approved non-production target with exact authorization for any writes.
+- **Validation:** Live catalog/migration-ledger inspection; exact function-body comparison; repository code search; security/performance advisors. No account rows or raw secrets were read.
+- **Dependencies:** AUTH-OPS-003 and authoritative environment/integration configuration.
+- **Risk:** Critical — do not infer missing migration contents, mutate live account data, or run lifecycle RPCs while this task's Supabase scope is read-only.
+- **Links:** [Roadmap](../user-management-roadmap.md), [lifecycle migration](../../supabase/migrations/20261026084506_auth_admin_user_lifecycle_rpcs.sql), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
 ### AUTH-SEC-002 — Restrict direct browser-role grants on auth persistence tables
 
@@ -256,19 +262,20 @@
 
 ### AUTH-UM-004 — Non-production security/integration gate (UM-4)
 
-- **Priority/status:** P1 / IN PROGRESS — UM-2B code is merged and exact-head service/web CI passed; end-to-end account lifecycle tests with synthetic fixtures, cookie/gateway behavior and migration provenance remain incomplete. No Supabase branch was created.
-- **Evidence:** `.github/workflows/ci.yml`, `.github/workflows/web-ci.yml`, `README.md`, `docs/production-runtime-secrets.md`, `supabase/migrations/`.
-- **Current behavior:** Source-level backend/web CI passes for the merged read-only slices but does not prove the live RPC contract, audit semantics, cookie/gateway forwarding or lifecycle behavior end-to-end.
-- **Desired behavior:** Evidence-backed lifecycle integration proof and an explicit rollout decision, separate from code merges. The owner explicitly classifies this target as non-production and authorizes routine scoped operations without another confirmation. Keep production release and live-trading actions separately gated.
+- **Priority/status:** P1 / BLOCKED — UM-2B code is merged and exact-head service/web CI passed, but end-to-end lifecycle integration has not been performed. Current Supabase scope is read-only; environment classification and runtime/integration mapping remain unresolved.
+- **Evidence:** `.github/workflows/ci.yml`, `.github/workflows/web-ci.yml`, `README.md`, `docs/production-runtime-secrets.md`, `supabase/migrations/`, live catalog and ledger evidence in the roadmap.
+- **Current behavior:** Source-level backend/web CI and migration-contract tests do not prove that the deployed runtime URL maps to the inspected project or verify cookie/gateway forwarding and lifecycle behavior against a safe database. Auth roadmap records owner-confirmed non-production, TCE queue records conflicting private-production wording, and live logs are tagged `env=prod` on the only listed `main` branch. Supabase Preview is skipped.
+- **Desired behavior:** Run synthetic-fixture lifecycle integration only against an explicitly classified and approved non-production target with exact authorization for required writes. Keep production release and live-trading actions separate.
 - **Acceptance criteria:**
-  - Backend and web tests/typecheck/lint/build pass on exact PR heads.
-  - Schema/RPC provenance, RLS/grants, audit redaction, cookies/CORS/CSRF/rate limits and gateway behavior are verified.
-  - Tests cover login, refresh, MFA, passkey, suspension and session revocation paths.
-  - No production migration, deployment, live account mutation or secret output is performed by this task.
-- **Validation:** Exact-head GitHub Actions; approved non-production Supabase integration; auth consumer contract tests; redaction review.
+  - [x] Backend/web source tests and typecheck/build passed for merged lifecycle code.
+  - [x] Verify live RPC signatures, function bodies, ACLs and Auth-table grants read-only.
+  - [ ] Resolve environment classification and runtime URL-to-ref/GitHub integration mapping.
+  - [ ] Obtain exact authorization for isolated synthetic lifecycle writes, then test login, refresh, MFA, passkey, suspension and session revocation.
+  - [ ] Verify audit redaction, cookies/CORS/CSRF/rate limits and gateway behavior without exposing secrets.
+- **Validation:** Exact-head GitHub Actions; approved non-production target; synthetic fixtures only after explicit write authorization; response/audit redaction review.
 - **Dependencies:** AUTH-UM-000 through AUTH-UM-003 and AUTH-OPS-001.
-- **Risk:** Critical if source-only CI is mistaken for rollout readiness.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+- **Risk:** Critical if source-only CI is mistaken for end-to-end rollout readiness.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #64](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/64).
 
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
