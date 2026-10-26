@@ -13,7 +13,7 @@ export function AuthScreen() {
   const [mfaCode, setMfaCode] = useState("");
   const [pendingMfa, setPendingMfa] = useState(false);
   const [useRecovery, setUseRecovery] = useState(false);
-  const { accessToken, user, loading, error, signIn, signUp, completeMfa, pendingMfaChallengeToken, restoreSession, signOut, setError } = useAuthStore();
+  const { accessToken, user, loading, error, signIn, signUp, completeMfa, pendingMfaChallengeToken, cancelMfa, restoreSession, signOut, setError } = useAuthStore();
 
   useEffect(() => { void restoreSession(); }, [restoreSession]);
 
@@ -137,7 +137,7 @@ export function AuthScreen() {
                 {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
                 <button type="submit" disabled={loading} className="w-full rounded-xl bg-[var(--brand)] px-4 py-3.5 text-sm font-bold text-black disabled:opacity-60">{loading ? "Verifying…" : "Verify and sign in"}</button>
                 <button type="button" onClick={() => { setUseRecovery((v) => !v); setMfaCode(""); }} className="w-full py-2 text-sm text-[var(--muted)]">{useRecovery ? "Use authenticator code" : "Use recovery code instead"}</button>
-                <button type="button" onClick={() => { setPendingMfa(false); setMfaCode(""); setError(null); }} className="w-full py-2 text-sm text-[var(--muted)]">Back to sign in</button>
+                <button type="button" onClick={() => { setPendingMfa(false); setMfaCode(""); cancelMfa(); setError(null); }} className="w-full py-2 text-sm text-[var(--muted)]">Back to sign in</button>
               </form>
             </>
           )}
