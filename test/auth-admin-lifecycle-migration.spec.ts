@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const migration = readFileSync(
-  join(__dirname, '..', 'supabase', 'migrations', '20261026054000_auth_admin_user_lifecycle_rpcs.sql'),
+  join(__dirname, '..', 'supabase', 'migrations', '20261026084506_auth_admin_user_lifecycle_rpcs.sql'),
   'utf8',
 );
 
