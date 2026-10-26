@@ -205,6 +205,48 @@ describe('Admin user lifecycle HTTP contract', () => {
     }
   });
 
+  it('denies a suspended administrator before lifecycle mutation and audits the denial', async () => {
+    const harness = await createHarness({ status: 'SUSPENDED' });
+    try {
+      const response = await patchStatus(harness.url, {
+        Authorization: 'Bearer synthetic-test-token',
+        'X-Request-Id': REQUEST_ID,
+      });
+      expect(response.status).toBe(403);
+      expect(harness.rpc).toHaveBeenCalledWith('auth_record_admin_audit_event', expect.objectContaining({
+        p_actor_user_id: ADMIN_ID,
+        p_action: 'ADMIN_ACCESS_DENIED',
+        p_outcome: 'DENIED',
+        p_reason_code: 'POLICY_VIOLATION',
+        p_request_id: REQUEST_ID,
+      }));
+      expect(harness.rpc.mock.calls.some(([name]) => name === 'auth_admin_update_user_status')).toBe(false);
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('requires MFA to be enabled as well as recent before a lifecycle mutation', async () => {
+    const harness = await createHarness({ mfaEnabled: false });
+    try {
+      const response = await patchStatus(harness.url, {
+        Authorization: 'Bearer synthetic-test-token',
+        'X-Request-Id': REQUEST_ID,
+      });
+      expect(response.status).toBe(403);
+      expect(harness.rpc).toHaveBeenCalledWith('auth_record_admin_audit_event', expect.objectContaining({
+        p_actor_user_id: ADMIN_ID,
+        p_action: 'ADMIN_ACCESS_DENIED',
+        p_outcome: 'DENIED',
+        p_reason_code: 'POLICY_VIOLATION',
+        p_request_id: REQUEST_ID,
+      }));
+      expect(harness.rpc.mock.calls.some(([name]) => name === 'auth_admin_update_user_status')).toBe(false);
+    } finally {
+      await harness.app.close();
+    }
+  });
+
   it('requires recent MFA for lifecycle mutations and audits the denial without calling the mutation RPC', async () => {
     const harness = await createHarness({
       mfaVerifiedAt: Math.floor(Date.now() / 1000) - 301,
