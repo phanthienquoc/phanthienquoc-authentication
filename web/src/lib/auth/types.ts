@@ -8,7 +8,8 @@ export type AuthUser = {
 export type AuthResult = {
   accessToken?: string;
   mfaRequired?: boolean;
-  userId?: string;
+  challengeToken?: string;
+  mfaExpiresInSeconds?: number;
 };
 
 export type ApiError = {
