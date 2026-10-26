@@ -86,10 +86,11 @@ export class AuthRepository {
     return this.mapUser(data ?? undefined);
   }
 
-  async createUser(input: { email: string; passwordHash: string; role: 'USER' | 'ADMIN' }) {
+  async createUser(input: { email: string; passwordHash: string }) {
     const { data, error } = await this.supabase.db.from('users').insert({
       email: input.email.trim().toLowerCase(), password_hash: input.passwordHash,
-      role: input.role, mfa_enabled: false,
+      // Signup must never bootstrap an administrator; role changes use the audited lifecycle RPC.
+      role: 'USER', mfa_enabled: false,
     }).select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,status').single<UserRow>();
     if (error) {
       if (error.code === '23505') {
