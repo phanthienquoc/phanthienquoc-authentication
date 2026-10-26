@@ -223,21 +223,25 @@
 
 ### AUTH-SEC-001 — Bind MFA completion to a server-side first-factor challenge
 
-- **Priority/status:** P1 / BLOCKED — source audit is complete, but implementation depends on the AUTH-UM-000 RPC/schema contract and an approved non-production target for durable challenge storage; tracked under [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), not a duplicate user-management issue.
-- **Evidence:** `src/auth/auth.module.ts`, `src/auth/auth.controller.ts` (`POST mfa/login`, `POST mfa/recovery`), `src/auth/dto/mfa-login.dto.ts`, `src/auth/passkey.service.ts`, `web/src/features/auth/auth-store.ts`.
-- **Current behavior:** The registered `AuthModule` exposes only `AuthController`. Its active MFA login/recovery routes accept `userId + code`; password and passkey login return `mfaRequired + userId`, and the pending state is held in the browser store rather than a server-issued, expiring challenge bound to successful first-factor verification. `src/auth/mfa.controller.ts` contains duplicate MFA routes but is not registered in `AuthModule`; do not register it as a workaround. No explicit NestJS rate-limit guard is visible in this repository; gateway rate limiting has not been verified.
-- **Test inventory:** `test/user-management-security.spec.ts`, `test/admin.guard.spec.ts` and `test/users-management.controller.spec.ts` cover admin response/guard/route contracts. No unit spec for `AuthService.login/refresh`, MFA completion or `PasskeyService.authenticationVerify` was found under `test/`; this is a repository test-tree finding, not a claim that no external/e2e coverage exists.
-- **Desired behavior:** Short-lived, one-time server challenge bound to the successful first factor, user and session; bounded attempts, safe invalidation and consistent behavior across password/passkey MFA and recovery.
+- **Priority/status:** P1 / IN PR — the challenge schema/RPC migration was applied and verified at ledger version `20261026040431 auth_server_issued_mfa_login_challenges`; code, DTO, web state and tests are on [the dedicated branch](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/fix/auth-sec-001-server-issued-mfa-challenge).
+- **Evidence:** `src/auth/auth.module.ts`, `src/auth/auth.controller.ts`, `src/auth/dto/mfa-login.dto.ts`, `src/auth/auth.service.ts`, `src/auth/passkey.service.ts`, `src/auth/auth.repository.ts`, and web auth store/API. The duplicate `src/auth/mfa.controller.ts` was removed because it was not registered and contained the old userId-based completion path.
+- **Current behavior (before this slice):** Registered MFA login/recovery accepted `userId + code`; password/passkey returned `mfaRequired + userId`. Browser-supplied identity was being used to select the MFA target account without a server-issued challenge proving first factor.
+- **Current behavior (after this slice):** Password and passkey MFA now issue a cryptographically random 32-byte base64url challenge token, store only its SHA-256 hash, and return the raw token once with a 300-second TTL. TOTP completion validates the challenge and atomically consumes it after successful code verification. Recovery completion atomically consumes both challenge and one-time recovery code. Challenge attempts are locked after five failures. The web store keeps the pending token only in memory and sends `challengeToken` (never `userId`) to the completion API.
+- **Desired behavior:** One-time, short-lived server challenge bound to the correct legacy account and successful password/passkey first factor; bounded attempts and replay protection shared across TOTP and recovery.
 - **Acceptance criteria:**
-  - [ ] MFA cannot complete for a user without a prior server-validated first factor.
-  - [ ] Challenge is one-time, short-lived and bound to the correct user/session; attempts are rate-limited.
-  - [ ] Password and passkey MFA paths share the same server challenge contract; recovery codes remain one-time.
-  - [ ] Missing, expired, replayed and cross-user challenges fail closed with generic errors; audit records contain no codes/secrets.
-  - [ ] The unregistered duplicate `MfaController` remains unregistered until its behavior is reconciled or the duplicate is removed with tests.
-- **Validation:** Controller/service tests for missing, expired, replayed and cross-user challenges; password/passkey MFA parity tests; rate-limit tests; verify gateway rate limiting separately before rollout.
-- **Dependencies:** Coordinate with AUTH-UM-000 RPC/schema reconciliation; choose durable server-side challenge storage only after authoritative migration provenance and an explicitly approved non-production Supabase target. Preserve existing active-account login contracts with compatibility tests.
-- **Risk:** High — second-factor completion is currently represented by client-held user ID and code, not a server-issued first-factor challenge.
-- **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [AuthModule](../../src/auth/auth.module.ts), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
+  - [x] MFA cannot complete for a user without a prior server-validated first factor; completion DTOs do not accept `userId`.
+  - [x] Challenge token is cryptographically random, expires in 5 minutes, only its SHA-256 hash is stored, and the raw token is held client-side in memory only.
+  - [x] Password and passkey MFA share the same challenge issuance contract.
+  - [x] TOTP challenge consumption is atomic and one-time; recovery code + challenge are consumed in one database transaction.
+  - [x] Five failed attempts lock the challenge; missing/expired/replayed challenges fail closed with generic errors.
+  - [x] New table has RLS enabled, no direct table grants (including service_role), and the five SECURITY DEFINER RPCs have fixed search_path and EXECUTE only for service_role/owner postgres.
+  - [x] Remove the unregistered duplicate `MfaController` rather than registering a second route implementation.
+  - [ ] Add focused controller/RPC adapter tests for failure attempts, concurrent replay and recovery atomicity; exact-head CI must pass before merge.
+  - [ ] Verify gateway-level request-rate limiting separately before rollout.
+- **Validation:** Supabase apply succeeded for `20261026040431 auth_server_issued_mfa_login_challenges`; read-only catalog checks verified the table columns and all five function signatures/SECURITY DEFINER/ACLs. Post-apply direct table privileges are false for anon/authenticated/service_role. Login flow mock regression test now asserts `challengeToken` and no `userId`, and that no JWT/refresh cookie is issued before MFA. Exact-head GitHub CI remains pending.
+- **Dependencies:** AUTH-UM-000 RPC contract migration is merged. This slice does not implement suspension/status checks; UM-2 must still enforce status across login, refresh, MFA and passkey. Do not add mutation endpoints until audit/concurrency tests pass.
+- **Risk:** High — MFA is a security boundary. The challenge token is opaque, one-time and short-lived; recovery path is atomic, but exact-head CI and integration tests are required before release.
+- **Links:** [Issue #1](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/1), [Roadmap](../user-management-roadmap.md), [MFA challenge migration](../../supabase/migrations/20261026040431_auth_server_issued_mfa_login_challenges.sql), [AuthModule](../../src/auth/auth.module.ts), [auth controller](../../src/auth/auth.controller.ts), [MFA DTO](../../src/auth/dto/mfa-login.dto.ts).
 
 ### AUTH-UM-001A2 — Normalize thrown admin role-lookup failures
 
