@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-- **Status (owner/admin confirmation 2026-10-26 19:13 +07):** UM-1/UM-2/UM-3 implementation is merged; UM-4 controlled integration is authorized against shared non-production project `gtqovpusfyyvxpeezxlo`. Live catalog confirms `public.users.status` is non-null `ACTIVE` by default; 14 current `auth_%` RPCs have fixed search paths and EXECUTE limited to `service_role`/owner. Historical `env=prod` logs and stale TCE wording do not override the latest owner environment classification. Migration-history drift and branch `MIGRATIONS_FAILED` status remain separate technical tasks. No production app release or live trading/order action is authorized; never create a potentially billable Supabase branch without cost lookup and explicit approval.
+- **Status (owner/admin confirmation 2026-10-26 19:13 +07):** UM-1/UM-2/UM-3 implementation is merged; UM-4 synthetic database-RPC integration passed against shared non-production project `gtqovpusfyyvxpeezxlo`; application-level HTTP integration remains open. Live catalog confirms `public.users.status` is non-null `ACTIVE` by default; 14 current `auth_%` RPCs have fixed search paths and EXECUTE limited to `service_role`/owner. Historical `env=prod` logs and stale TCE wording do not override the latest owner environment classification. Migration-history drift and branch `MIGRATIONS_FAILED` status remain separate technical tasks. No production app release or live trading/order action is authorized; never create a potentially billable Supabase branch without cost lookup and explicit approval.
 - **Owner:** Central NestJS authentication service and its Next.js `web/` app.
 - **Scope:** This roadmap governs User Management and authentication work only; it does not change TCE or Media consumers.
 - **Change record (2026-10-26):** Earlier scoped RPC, audit, MFA-challenge, status and lifecycle migrations are present in the connected ledger. A later task instruction requires separate authorization for each exact migration operation; historical broad routine-migration authorization is not standing permission for further applies. Do not create a Supabase branch without a cost quote and explicit cost approval. Runtime URL-to-ref and GitHub integration settings remain unverified.
@@ -249,3 +249,24 @@ Stable task IDs, implementation evidence and current blockers are maintained in 
 - **Advisors:** Security advisor reports 34 project-wide RLS-enabled/no-policy findings; performance advisor reports 15 unindexed foreign keys, including already-tracked `auth_passkey_challenges.user_id` and `refresh_sessions.replaced_by`. These are scoped/project-wide observations, not a reason to mass-change unrelated schemas.
 - **Exact-head validation:** Auth PR #68 head `dcf1a4d822758943e093cf6cd95b865cdf81bb1a` passed Auth Service CI [#40313090236](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40313090236), including tests, typecheck, build, and container build. PR #70 head `d769ceb23b14e1b160638320f56d088cdcd1f28e` passed [#40305791232](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40305791232). Both remain open/draft.
 - **Safety gate:** The historical owner-confirmed non-production classification is retained as history, but the current instruction requires separate authorization for each exact migration/write/deploy operation. No migration, Supabase branch creation, schema/data write, function deployment, app release, or live account mutation occurred. Keep merge gated until repository/project integration and all default-branch side effects are authoritative.
+
+
+## Controlled UM-4 database-RPC integration — 2026-10-26 20:33 +07:00
+
+- **Target:** Owner-confirmed shared non-production project `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, region `ap-southeast-1`, PostgreSQL 17.6.1. `list_branches` still returns only non-persistent default `main` / Git `master` with status `MIGRATIONS_FAILED`. No branch was created.
+- **Contract preflight:** `public.users.status` is `text NOT NULL DEFAULT 'ACTIVE'`, constrained to `ACTIVE`/`SUSPENDED`; role is constrained to `USER`/`ADMIN`. Live role/status/session-revocation RPC signatures and return types match tracked source; they are `SECURITY DEFINER`, use fixed `search_path=pg_catalog, public, pg_temp`, and grant EXECUTE only to `service_role` and owner `postgres`. The audit writer validates action/outcome/reason/request-id and stores no token, hash, MFA, recovery or passkey material.
+- **Synthetic integration:** One atomic PostgreSQL `DO` statement created three generated synthetic users and temporary refresh sessions, then asserted:
+  - active-user refresh-session creation succeeds;
+  - suspending a synthetic user changes status to `SUSPENDED` and revokes its existing session;
+  - a suspended user cannot create a new refresh session;
+  - reactivation succeeds and allows a new session;
+  - explicit session revocation marks the active synthetic session revoked;
+  - a non-admin actor is denied role mutation;
+  - self-role change and self-suspension are denied, leaving the synthetic admin active;
+  - invalid audit request-id validation raises an error and the attempted role mutation rolls back;
+  - a valid role promotion succeeds and audit events are written.
+- **Cleanup verification:** A separate read-only query returned `synthetic_users_remaining=0`, `synthetic_sessions_remaining=0`, and `synthetic_audit_events_remaining=0`. The integration used only generated synthetic IDs and filtered verification/cleanup to the fixture prefix; no real account rows or credential material were read. No migration or schema change was applied.
+- **Remaining UM-4 scope:** This validates database RPC behavior, not the complete deployed HTTP path. Login, application refresh-cookie flow, MFA/recovery, passkey, CORS/CSRF, rate limiting, gateway forwarding and audit/response redaction still need application-level integration against an authoritative runtime binding.
+- **Migration/operations diagnostics:** In the 2026-10-26 12:30–13:30 UTC log window, 44 PostgREST timeout-manager events were returned (latest `13:28:36.768Z`) and two workflow migration errors reported remote versions absent from the local migrations directory (latest `12:35:12.429Z`). Historical remote-only migration versions `20261014024759`, `20261014130516`, and `20261014131151`, plus the Keycloak timestamp mismatch, remain unresolved. No migration was applied during this integration run; each future migration operation still requires exact authorization.
+- **Current status:** UM-1/UM-2/UM-3 implementation remains merged. UM-4 is **PARTIAL**: synthetic DB-RPC integration passed; application-level end-to-end acceptance remains open.
+
