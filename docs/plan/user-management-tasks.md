@@ -284,7 +284,7 @@
 
 ### AUTH-UM-003D — Browser-level admin user dialog verification
 
-- **Priority/status:** P2 / IN PR — replacement for stale-base [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45); this branch carries the same reviewed UI/test slice onto the current master after the roadmap evidence PR merged.
+- **Priority/status:** P2 / IN PR — [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), replacing stale-base [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45); this branch carries the reviewed UI/test slice onto current master after the roadmap evidence PR merged.
 - **Evidence:** `web/next.config.ts`, `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`; original PR #45 exact head `420b97b79991b376062189e7ae27ae8589556499`.
 - **Current behavior:** The prior Chrome DevTools Protocol browser test was blocked when Next.js rejected the loopback origin for HMR, so the mocked admin directory row never rendered. The dialog also needed a bounded height and internal scrolling for short landscape viewports.
 - **Desired behavior:** Allow only `127.0.0.1` as a Next.js development origin for the test harness; exercise the real UI in Chrome/Chromium against a local mocked Auth API; constrain the read-only dialog to the viewport with scrollable content.
@@ -298,7 +298,7 @@
 - **Validation:** Original PR #45 exact head passed auth-web CI [run #40258016304](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304), including browser test result 10 tests / 10 passed / 0 failed, and auth-service CI [run #40258016309](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309). Replacement branch must rerun both checks after rebasing the task queue onto current master.
 - **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or mutation endpoint dependency.
 - **Risk:** Low/medium — dev-only origin configuration and browser verification; no production host is allowlisted and no real Auth/Supabase request is made.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), superseded [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45).
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), current [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), superseded [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45).
 
 ## Release evidence and guardrails
 
