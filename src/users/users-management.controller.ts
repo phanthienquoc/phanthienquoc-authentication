@@ -16,6 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard, type AdminRequest } from './admin.guard';
+import { RecentMfaGuard } from './recent-mfa.guard';
 import { ListUsersDto } from './dto/list-users.dto';
 import { RevokeUserSessionsDto } from './dto/revoke-user-sessions.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
@@ -39,6 +40,7 @@ export class UsersManagementController {
     return result;
   }
 
+  @UseGuards(RecentMfaGuard)
   @Patch(':id/role')
   updateRole(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -55,6 +57,7 @@ export class UsersManagementController {
     });
   }
 
+  @UseGuards(RecentMfaGuard)
   @Patch(':id/status')
   updateStatus(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -71,6 +74,7 @@ export class UsersManagementController {
     });
   }
 
+  @UseGuards(RecentMfaGuard)
   @Post(':id/revoke-sessions')
   @HttpCode(HttpStatus.OK)
   revokeSessions(
