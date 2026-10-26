@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-26 14:35 +07:00  
+**Last audited:** 2026-10-26 14:45 +07:00  
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -51,6 +51,8 @@
 - **Dependencies:** Authoritative source for three remote-only versions, version reconciliation, and explicit environment classification.
 - **Risk:** High — `MIGRATIONS_FAILED` and unknown environment make migration-bearing merge unsafe even though current signatures/privileges are present.
 - **Links:** [UM roadmap](../user-management-roadmap.md), [PR #55](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/55), [RPC-contract migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql), [grant-revocation migration](../../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), [MFA challenge migration on PR branch](https://github.com/phanthienquoc/phanthienquoc-authentication/blob/fix/auth-sec-001-server-issued-mfa-challenge/supabase/migrations/20261026040431_auth_server_issued_mfa_login_challenges.sql).
+
+- **Latest read-only confirmation (2026-10-26 14:45 +07):** `get_project_url` returned `https://gtqovpusfyyvxpeezxlo.supabase.co`, consistent with the discovered project ref, but the deployed `SUPABASE_URL` remains unverifiable because GitHub runtime secret values are hidden and `.env.example` is a placeholder. `list_migrations` still reports 75 entries. Live `public.users.status`, `auth_create_refresh_session(uuid, uuid, uuid, text, timestamptz, text, text)`, and the three lifecycle RPCs remain absent. `auth_record_admin_audit_event` and `auth_rotate_refresh_session` remain `SECURITY DEFINER` with fixed `search_path=pg_catalog, public, pg_temp` and EXECUTE limited to `service_role` plus owner `postgres`. No account rows were read and no write was performed.
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
@@ -388,7 +390,7 @@
 
 ### AUTH-UM-002B1 — Require recent MFA assurance for privileged lifecycle mutations
 
-- **Priority/status:** P0 / IMPLEMENTED ON PR #60; exact-head CI pending as of 2026-10-26 14:35 +07:00.
+- **Priority/status:** P0 / CODE + TESTS VALIDATED ON PR #60; safe-environment integration remains blocked.
 - **Evidence:** `src/auth/jwt.service.ts`, `src/auth/auth.service.ts`, `src/users/admin.guard.ts`, `src/users/recent-mfa.guard.ts`, `src/users/users-management.controller.ts`, `test/auth-mfa-assurance.spec.ts`, `test/recent-mfa.guard.spec.ts`, and `test/users-management.controller.spec.ts`.
 - **Current behavior before this slice:** Access JWTs carried no MFA assurance timestamp; the database-backed AdminGuard verified current ADMIN/ACTIVE status but privileged lifecycle routes did not require recent MFA.
 - **Desired behavior:** Only a token minted after successful TOTP or recovery-code completion carries signed `mfa_verified_at`. Each role/status/session mutation additionally requires current database `mfa_enabled=true`, a non-future assurance timestamp no older than 300 seconds, and a persisted allowlisted denial audit if the requirement is not met. Password-only and refresh-issued tokens do not carry or preserve MFA assurance. Read-only list/detail routes remain available to active admins without this mutation-only gate.
@@ -398,7 +400,7 @@
   - [x] Enforce the five-minute, database-enabled MFA gate on all three lifecycle mutation routes only.
   - [x] Audit missing/stale/future/disabled-MFA denials with allowlisted metadata and fail closed if audit persistence fails.
   - [x] Add unit and controller metadata regression tests without exposing tokens or secrets.
-  - [ ] Exact-head Auth Service CI passes after these changes.
+  - [x] Exact-head Auth Service CI passed after these changes: run [#40287484109](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40287484109) on code/test head `32c7a7225fb576c64a2640dbf21da364b18e3c44` — 19 test suites / 92 tests passed, typecheck, build and container build passed. The initial head `19fc91705166a7b94aae38a96ed1e3b67db52bb0` had one test-only metadata assertion failure; it was corrected by treating absent guard metadata as an empty list, without weakening the route assertion.
   - [ ] Reconfirm the full UM stack on a safe, explicitly approved non-production target; no production migration or deployment.
 - **Dependencies:** PR #55 MFA challenge flow, PR #59 account status enforcement, and PR #60 lifecycle mutation routes.
 - **Risk:** High — this is a privileged authorization gate. Missing assurance intentionally denies mutations; after access-token refresh the administrator must authenticate through MFA again.
@@ -407,7 +409,7 @@
 ### AUTH-OPS-003 — Investigate recurring PostgREST root endpoint timeouts
 
 - **Priority/status:** P1 / INVESTIGATING — read-only evidence only; root cause not yet proven.
-- **Evidence:** Supabase unified logs for project `gtqovpusfyyvxpeezxlo`, window `2026-10-26T06:30:00Z`–`2026-10-26T07:35:00Z` (13:30–14:35 ICT), returned 63 `postgrest_logs` rows with `Warp server error: Thread killed by timeout manager` and `log_attributes['path'] = '/'`. A separate aggregate returned 46 exact base-message rows plus expanded/duplicated message variants. `edge_logs` returned 1,554 `auth_passkey_*` request events in the same window, but its path metadata was blank; that does not establish causation.
+- **Evidence:** Supabase unified logs for project `gtqovpusfyyvxpeezxlo`, window `2026-10-26T06:30:00Z`–`2026-10-26T07:35:00Z` (13:30–14:35 ICT), returned 63 `postgrest_logs` rows with `Warp server error: Thread killed by timeout manager` and `log_attributes['path'] = '/'`. A separate aggregate returned 46 exact base-message rows plus expanded/duplicated message variants. A follow-up query for `2026-10-26T07:30:00Z`–`07:45:00Z` returned 7 further rows, last seen at `07:40:55Z`, confirming recurrence in the later window. `edge_logs` returned 1,554 `auth_passkey_*` request events in the same window, but its path metadata was blank; that does not establish causation.
 - **Current behavior / hypothesis:** `AuthRepository.ready()` probes five public tables and then performs a GET of the PostgREST OpenAPI root (`/rest/v1/`) to validate required RPC paths; `GET /auth/status` calls this readiness method. The root-path timeout pattern is consistent with that schema-introspection request but has not been correlated to a specific caller, so treat this as a hypothesis only.
 - **Desired behavior:** Identify the timed-out request and caller; preserve fail-closed schema readiness while avoiding unbounded/repeated expensive introspection. Do not weaken contract checks or log credentials, tokens, hashes, MFA/recovery data, passkey material, or account rows.
 - **Acceptance criteria:**
