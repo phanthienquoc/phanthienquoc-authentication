@@ -484,3 +484,23 @@
 - **Public access follow-up:** The read-only catalog now returns no policy for `public.tce_cashout_events` and no `anon`/`authenticated` table grants. This is a shared-project observation; TCE remediation is tracked independently in the TCE queue.
 - **Logs/advisors:** The bounded timeout-manager query for 2026-10-26 11:40–12:40 UTC returned no matching rows. Security Advisor reports 35 project-wide `rls_enabled_no_policy` findings, including expected server-owned tables with no browser grants; the project-wide `security_definer_view` and mutable-search-path findings remain separate follow-ups.
 - **Next safe Auth slice:** `AUTH-UM-001A5` hardens the signup persistence boundary so `AuthRepository.createUser` cannot accept or persist an ADMIN role. No schema, migration, login, Keycloak or account data change is included. Exact-head CI and merge side-effect review remain pending.
+
+
+### AUTH-UM-001A5 — Enforce USER-only role at signup persistence boundary
+
+- **Priority/status:** P1 / IMPLEMENTED IN DRAFT PR #71 — exact-head CI requires a rerun after fixing a stale service-level assertion.
+- **Evidence:** `src/auth/dto/signup.dto.ts` has no role field; `AuthService.signup` previously supplied `USER`; `AuthRepository.createUser` nevertheless accepted a `USER | ADMIN` parameter and persisted it. Repository search found this as the only `createUser` call site. The persistence boundary now accepts only email/password hash and hardcodes `role: 'USER'`.
+- **Current behavior before this slice:** The public DTO rejects role under whitelist/forbid-non-whitelisted validation, and service signup assigned USER, but the repository API still permitted a future internal caller to request ADMIN.
+- **Desired behavior:** Generic signup creation must never assign ADMIN. Privileged role changes are available only through the existing audited lifecycle RPCs with server-side admin/recent-MFA checks.
+- **Acceptance criteria:**
+  - [x] Remove role from the `AuthRepository.createUser` input contract.
+  - [x] Hardcode `role: 'USER'` at the persistence boundary.
+  - [x] Remove the redundant role argument from `AuthService.signup`.
+  - [x] Add a repository regression test passing an unexpected runtime ADMIN property and assert the inserted row is still USER.
+  - [x] Preserve DTO rejection of a public role field.
+  - [ ] Pass exact-head Auth Service CI (tests, typecheck, build, container build) after the assertion update.
+  - [ ] Finish exact diff/security review and resolve the default-branch Supabase side-effect gate before merge.
+- **Validation:** First exact-head run [Auth Service CI #40325286166](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40325286166) failed in `test/user-management-security.spec.ts` because it expected the old service call to pass `role: 'USER'`. The failure was reproduced from the CI log; the test was updated to assert the narrowed two-field contract. The new repository test passed in that run; rerun is pending after the correction. No tests were weakened.
+- **Dependencies:** UM-1 admin guard/allowlist and existing lifecycle RPCs; no schema/migration dependency.
+- **Risk:** Low — narrows an internal method contract and makes least privilege explicit. No DB schema, account rows, credentials, login/MFA/passkey flow, Keycloak identity or release workflow changes.
+- **Links:** [PR #71](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/71), [AuthRepository](../../src/auth/auth.repository.ts), [signup service](../../src/auth/auth.service.ts), [regression test](../../test/auth-repository-signup-role.spec.ts).
