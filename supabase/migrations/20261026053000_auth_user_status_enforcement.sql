@@ -38,7 +38,7 @@ create or replace function public.auth_create_refresh_session(
 language plpgsql
 security definer
 set search_path = pg_catalog, public, pg_temp
-as $
+as $$
 declare
   v_status text;
 begin
@@ -60,7 +60,7 @@ begin
 
   return true;
 end;
-$;
+$$;
 
 create or replace function public.auth_replace_mfa_recovery_codes(
   p_user_id uuid,
