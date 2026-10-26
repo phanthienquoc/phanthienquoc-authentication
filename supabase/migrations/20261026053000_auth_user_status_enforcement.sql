@@ -71,10 +71,10 @@ security definer
 set search_path = pg_catalog, public, pg_temp
 as $$
 begin
-  if not exists (
-    select 1 from public.users u
-    where u.id = p_user_id and u.status = 'ACTIVE'
-  ) then
+  perform 1 from public.users u
+  where u.id = p_user_id and u.status = 'ACTIVE'
+  for update;
+  if not found then
     raise exception using errcode = '42501', message = 'Inactive account';
   end if;
 
@@ -98,6 +98,11 @@ as $$
 declare
   v_id uuid;
 begin
+  perform 1 from public.users u
+  where u.id = p_user_id and u.status = 'ACTIVE'
+  for update;
+  if not found then return false; end if;
+
   select id into v_id
   from public.mfa_recovery_codes
   where user_id = p_user_id and code_hash = p_code_hash and used_at is null
@@ -175,31 +180,44 @@ security definer
 set search_path = pg_catalog, public, pg_temp
 as $$
 declare
+  v_user_id uuid;
   v_session public.refresh_sessions%rowtype;
   v_user public.users%rowtype;
 begin
-  select * into v_session
+  -- Lock order is user first, then session, matching the future lifecycle mutation RPC.
+  select user_id into v_user_id
   from public.refresh_sessions
-  where token_hash = p_token_hash
+  where token_hash = p_token_hash;
+
+  if not found then
+    return jsonb_build_object('status', 'invalid');
+  end if;
+
+  select * into v_user
+  from public.users
+  where id = v_user_id
   for update;
 
   if not found then
     return jsonb_build_object('status', 'invalid');
   end if;
-  if v_session.expires_at <= now() then
-    return jsonb_build_object('status', 'invalid');
-  end if;
-
-  select id, email, role, mfa_enabled, status
-  into v_user.id, v_user.email, v_user.role, v_user.mfa_enabled, v_user.status
-  from public.users
-  where id = v_session.user_id;
-  if not found then return jsonb_build_object('status', 'invalid'); end if;
 
   if v_user.status <> 'ACTIVE' then
     update public.refresh_sessions
     set revoked_at = coalesce(revoked_at, now())
-    where user_id = v_session.user_id and revoked_at is null;
+    where user_id = v_user_id and revoked_at is null;
+    return jsonb_build_object('status', 'invalid');
+  end if;
+
+  select * into v_session
+  from public.refresh_sessions
+  where token_hash = p_token_hash
+  for update;
+
+  if not found or v_session.user_id <> v_user_id then
+    return jsonb_build_object('status', 'invalid');
+  end if;
+  if v_session.expires_at <= now() then
     return jsonb_build_object('status', 'invalid');
   end if;
 
@@ -274,13 +292,14 @@ begin
     return false;
   end if;
 
-  if not exists (
-    select 1 from public.users
-    where id = p_user_id
-      and mfa_enabled = true
-      and mfa_secret_encrypted is not null
-      and status = 'ACTIVE'
-  ) then
+  perform 1
+  from public.users
+  where id = p_user_id
+    and mfa_enabled = true
+    and mfa_secret_encrypted is not null
+    and status = 'ACTIVE'
+  for update;
+  if not found then
     return false;
   end if;
 
@@ -484,3 +503,5 @@ grant execute on function public.auth_get_mfa_login_challenge(text) to service_r
 grant execute on function public.auth_record_mfa_login_failure(text) to service_role;
 grant execute on function public.auth_consume_mfa_login_challenge(text) to service_role;
 grant execute on function public.auth_consume_mfa_login_recovery(text, text) to service_role;
+
+notify pgrst, 'reload schema';
