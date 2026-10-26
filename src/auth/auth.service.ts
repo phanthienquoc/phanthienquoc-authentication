@@ -201,7 +201,7 @@ export class AuthService {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
       sameSite: 'lax',
-      path: '/api/auth',
+      path: '/auth',
       maxAge: Number(process.env.JWT_REFRESH_TTL_SECONDS ?? 2592000) * 1000,
     });
   }
