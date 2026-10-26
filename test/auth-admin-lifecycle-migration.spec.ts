@@ -29,6 +29,9 @@ describe('AUTH-UM-002B lifecycle migration contract', () => {
       const body = functionBody(name);
       expect(body).toMatch(/security definer/i);
       expect(body).toMatch(/set search_path = pg_catalog, public, pg_temp/i);
+      expect(body).toContain("v_actor.role <> 'ADMIN'");
+      expect(body).toContain("v_actor.status <> 'ACTIVE'");
+      expect(body).toContain("'ADMIN_ACCESS_DENIED'");
       const globalLock = body.indexOf('pg_advisory_xact_lock(782345123, 1400923)');
       const userLookup = body.indexOf('from public.users');
       expect(globalLock).toBeGreaterThanOrEqual(0);
