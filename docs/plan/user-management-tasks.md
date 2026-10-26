@@ -14,7 +14,7 @@
 - Use one descriptive branch and PR per dependency-safe slice; never commit directly to `master`.
 - Before every merge, inspect push-triggered workflows and the exact side effects. Do not merge a PR that would publish/promote/deploy to production unless the user separately authorizes that exact side effect. Documentation-only changes are not exempt.
 - Squash-merge only after exact-head required checks pass, mergeability and acceptance criteria are verified, and the diff has been inspected for security/regressions.
-- Never run production migrations, mutate live accounts, or claim production health without evidence. A skipped check is not a passed test.
+- Owner-authorized migration scope (2026-10-26): the narrow Auth RPC-contract and Auth-table browser-grant migrations documented below were applied via the connected Supabase tools and verified read-only. Continue scoped schema/migration work as required by this User Management queue; do not infer approval for resets/deletes, Supabase branch merges, live account-data mutations, function deployment, production app release, or unrelated shared-project schema changes. A skipped check is not a passed test.
 
 ## Active tasks
 
@@ -27,6 +27,23 @@
 - **Side-effect gate:** Reviewed the prior image publication and promotion steps. The workflow-only merge no longer matches any push trigger. No production deployment, migration, live account mutation or platform-infra change was performed.
 - **Risk/remaining control:** Manual dispatch intentionally retains the ability to publish/promote production images; it must not be dispatched without separate release authorization. The prior [PR #18 release run #40209889836](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40209889836) proves only that a promotion request occurred, not that production rollout/health was verified.
 - **Links:** [release workflow](../../.github/workflows/release.yml), [PR #22](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/22).
+
+### AUTH-OPS-002 — Reconcile remaining Supabase migration history and integration status
+
+- **Priority/status:** P1 / IN PROGRESS — two scoped Auth migrations now apply and verify successfully, but three other remote-only migration versions still lack source artifacts and branch metadata still reports `MIGRATIONS_FAILED`.
+- **Evidence:** Supabase project ref `gtqovpusfyyvxpeezxlo`; direct apply successes for `20261026030920 auth_persistence_rpc_contract_reconcile` and `20261026032152 revoke_browser_auth_table_privileges`; read-only `list_migrations`, `pg_proc`/ACL queries and `has_table_privilege` verification. Previous master-push Supabase Preview check [#121371496330](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks) failed with `Remote migration versions not found in local migrations directory`.
+- **Current behavior:** The four source-required RPCs are present with service-role-only EXECUTE grants, and direct browser table privileges are removed from the five legacy Auth tables. The connected branch metadata still reports `MIGRATIONS_FAILED` despite those migration-ledger entries and verified catalog effects. `.env.example` still has a placeholder project ref; the exact runtime URL is not exposed in source. Three remote-only migrations (`20261014024759`, `20261014130516`, `20261014131151`) remain without matching source files.
+- **Desired behavior:** Keep each applied migration represented by its exact SQL artifact and reconcile remote-only history from authoritative artifacts; avoid fabricating migration contents from names or current catalog state.
+- **Acceptance criteria:**
+  - [x] Track the two scoped applied Auth migrations in `supabase/migrations/`.
+  - [x] Verify RPC signatures/ACLs and browser-role table privileges after the respective migrations without reading account rows.
+  - [ ] Find authoritative artifacts/revisions for the three remote-only migration versions in the two authorized repositories or repository history.
+  - [ ] Recheck the Supabase integration outcome after PR #51 merges; classify `MIGRATIONS_FAILED` based on exact evidence rather than status label alone.
+  - [x] Keep changes scoped to Auth tables and preserve the existing service-role client; no branch creation, reset, database data mutation or application release was performed.
+- **Validation:** Supabase `apply_migration` returned success for both versions; post-apply catalog checks verified function signatures, service-role grants and removal of `anon`/`authenticated` SELECT/INSERT/UPDATE/DELETE/TRUNCATE on five Auth tables. Repo CI runs against PR heads remain the source of code validation.
+- **Dependencies:** Authoritative source for the three remote-only versions and exact outcome of the current Supabase GitHub integration.
+- **Risk:** Medium/high — an external integration may continue to report migration-history drift even though these two narrow changes are applied. Do not repair unrelated migration history by guessing.
+- **Links:** [UM roadmap](../user-management-roadmap.md), [RPC-contract migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql), [grant-revocation migration](../../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), [prior Supabase Preview failure](https://github.com/phanthienquoc/phanthienquoc-authentication/commit/3af07f3749d970fe4ee084a953168c7f1ddd5975/checks).
 
 ### AUTH-UM-000 — Reconcile auth RPC and migration provenance (UM-0)
 
@@ -51,23 +68,23 @@
 
 ### AUTH-SEC-002 — Restrict direct browser-role grants on auth persistence tables
 
-- **Priority/status:** P0 / BLOCKED on AUTH-UM-000 migration provenance and an approved non-production validation target.
+- **Priority/status:** P0 / IN PR — direct browser-role table grants were revoked on the connected Supabase project via migration version `20261026032152`; exact source artifact is in this PR.
 - **Evidence:** Read-only Supabase catalog inspection on 2026-10-26; `public.users`, `public.refresh_sessions`, `public.mfa_recovery_codes`, `public.auth_passkey_credentials`, `public.auth_passkey_challenges`, `public.auth_keycloak_identities`; [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
-- **Current behavior:** RLS is enabled on all six tables and the catalog query found no policies. The ACL catalog explicitly lists `anon` and `authenticated` with SELECT/INSERT/UPDATE/DELETE/TRUNCATE plus REFERENCES, TRIGGER, and PostgreSQL 17 MAINTAIN privileges on `users`, `refresh_sessions`, `mfa_recovery_codes`, `auth_passkey_challenges`, and `auth_passkey_credentials`. Row-level access is default-denied by RLS when no policy matches, but RLS does not apply to TRUNCATE, so the excess destructive privilege is not mitigated by RLS. `auth_keycloak_identities` has no browser-role ACL entries and is restricted to server roles. The legacy refresh/recovery RPCs are executable only by `service_role`/owner.
-- **Fresh security-advisor cross-check (2026-10-26T01:05Z):** Supabase's security advisor reports 29 `rls_enabled_no_policy` findings across the connected project. Treat that as a project-wide signal, not 29 Auth tables. The six Auth tables scoped here were individually confirmed to have zero policies. Keep remediation scoped to Auth until authoritative migration provenance and an approved non-production target exist; do not modify unrelated tables.
-- **Fresh ACL/advisor recheck (2026-10-26T02:06Z):** `anon` and `authenticated` also have direct `TRUNCATE` privileges on `users`, `refresh_sessions`, `mfa_recovery_codes`, `auth_passkey_challenges`, and `auth_passkey_credentials`. No browser table privileges were found for `auth_keycloak_identities`. Security advisor still reports 29 project-wide `rls_enabled_no_policy` findings. Performance advisor reports 15 unindexed foreign keys project-wide, including the passkey challenge `user_id` FK and refresh-session `replaced_by` FK; these remain observation-only and are not modified here.
+- **Current behavior (post-migration):** The migration ledger lists `20261026032152 revoke_browser_auth_table_privileges`. A read-only `has_table_privilege` query confirms `anon` and `authenticated` now have no SELECT/INSERT/UPDATE/DELETE/TRUNCATE rights on `users`, `refresh_sessions`, `mfa_recovery_codes`, `auth_passkey_challenges`, or `auth_passkey_credentials`. `service_role` and `postgres` retain those rights on the same tables. `auth_keycloak_identities` already had no browser-role privileges. RLS remains enabled on the six Auth tables with zero policies; this migration changes grants only, not policies or rows.
+- **Historical security-advisor cross-check (2026-10-26T01:05Z):** Supabase's security advisor reports 29 `rls_enabled_no_policy` findings across the connected project. Treat that as a project-wide signal, not 29 Auth tables. The six Auth tables scoped here were individually confirmed to have zero policies. Keep remediation scoped to Auth until authoritative migration provenance and an approved non-production target exist; do not modify unrelated tables.
+- **Historical pre-migration ACL/advisor recheck (2026-10-26T02:06Z):** `anon` and `authenticated` also have direct `TRUNCATE` privileges on `users`, `refresh_sessions`, `mfa_recovery_codes`, `auth_passkey_challenges`, and `auth_passkey_credentials`. No browser table privileges were found for `auth_keycloak_identities`. Security advisor still reports 29 project-wide `rls_enabled_no_policy` findings. Performance advisor reports 15 unindexed foreign keys project-wide, including the passkey challenge `user_id` FK and refresh-session `replaced_by` FK; these remain observation-only and are not modified here.
 - **Desired behavior:** Keep password hashes, MFA state, refresh-session hashes, recovery-code hashes, passkey public-key/counter material and Keycloak identity metadata behind the server-side service-role client or narrowly scoped RPCs; browser roles should have no direct table privileges unless a separately justified, tested policy requires them.
 - **Acceptance criteria:**
-  - [ ] Inspect the web app and shared clients to confirm no browser code depends on direct Supabase table access.
-  - [ ] Reconcile authoritative migration provenance before designing a grant-revocation migration.
-  - [ ] Validate in an approved non-production environment that `anon`/`authenticated` cannot read or mutate auth tables and that the service-role login/refresh/MFA/passkey flows still work.
-  - [ ] Add regression checks for table privileges, RLS/policies and restricted RPC execution; do not apply a migration to the shared live project as part of this task.
-- **Validation:** Read-only `pg_policies`, `has_table_privilege` and `has_function_privilege` queries on 2026-10-26; no account rows were read and no database writes or migrations were performed.
-- **Dependencies:** AUTH-UM-000 and an approved non-production Supabase target.
-- **Risk:** High — revoking grants without confirming the runtime call paths could break authentication, while broad grants are fragile if RLS policy state changes.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+  - [x] Inspect the web app and shared clients; code search found server-owned Supabase/Postgres clients and no browser-side direct calls to the legacy Auth tables.
+  - [x] Verify actual grants and keep revocation scoped to the five legacy Auth tables; remote-only migration provenance for unrelated versions remains tracked in AUTH-UM-000.
+  - [x] Post-apply catalog query verifies `anon`/`authenticated` lack SELECT/INSERT/UPDATE/DELETE/TRUNCATE and `service_role` retains them on the five tables. Backend login/refresh/MFA/passkey end-to-end smoke remains a separate validation step.
+  - [x] Apply and track the grant-revocation migration; verify table privileges read-only after apply. RLS policy state was rechecked and intentionally not changed; the RPC EXECUTE ACLs remain service_role-only from migration `20261026030920`.
+- **Validation (post-apply, 2026-10-26T03:21:59Z):** `list_migrations` returned `20261026032152 revoke_browser_auth_table_privileges`; `has_table_privilege` is false for anon/authenticated SELECT/INSERT/UPDATE/DELETE/TRUNCATE on all five legacy Auth tables and remains true for service_role/postgres. No account rows were read or modified. Security advisor still reports 29 project-wide `rls_enabled_no_policy` findings, including the six Auth tables; the migration intentionally did not create broad RLS policies.
+- **Dependencies:** AUTH-UM-000's RPC contract migration is applied and tracked; backend consumers continue using server-side roles. Full login/refresh/MFA/passkey integration smoke remains outstanding.
+- **Risk:** Medium — direct browser-role privileges are removed while server-role privileges remain; validate all supported backend consumers before enabling lifecycle mutations.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [grant-revocation migration](../../supabase/migrations/20261026032152_revoke_browser_auth_table_privileges.sql), [RPC contract migration](../../supabase/migrations/20261026030920_auth_persistence_rpc_contract_reconcile.sql).
 
-- **Privilege semantics:** Supabase's [Securing your API](https://supabase.com/docs/guides/api/securing-your-api) distinguishes object grants from row policies; PostgreSQL's [row-security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) notes row security does not apply to operations such as TRUNCATE. Revoke the excess browser-role privileges only through an approved, reviewed migration in a verified non-production environment; do not mass-change the shared project.
+- **Privilege semantics:** Supabase's [Securing your API](https://supabase.com/docs/guides/api/securing-your-api) distinguishes object grants from row policies; PostgreSQL's [row-security documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) notes row security does not apply to operations such as TRUNCATE. The scoped browser-role revocation has now been applied and verified. Keep future privilege/policy changes scoped to the specific Auth tables and validate them from catalog metadata; do not mass-change unrelated shared-project tables.
 
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
@@ -285,21 +302,20 @@
 
 ### AUTH-UM-003D — Browser-level admin user dialog verification
 
-- **Priority/status:** P2 / IN PR — [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), replacing stale-base [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45); this branch carries the reviewed UI/test slice onto current master after the roadmap evidence PR merged.
-- **Evidence:** `web/next.config.ts`, `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`; original PR #45 exact head `420b97b79991b376062189e7ae27ae8589556499`.
-- **Current behavior:** The prior Chrome DevTools Protocol browser test was blocked when Next.js rejected the loopback origin for HMR, so the mocked admin directory row never rendered. The dialog also needed a bounded height and internal scrolling for short landscape viewports.
-- **Desired behavior:** Allow only `127.0.0.1` as a Next.js development origin for the test harness; exercise the real UI in Chrome/Chromium against a local mocked Auth API; constrain the read-only dialog to the viewport with scrollable content.
+- **Priority/status:** P2 / DONE — [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47) squash-merged at `3af07f3749d970fe4ee084a953168c7f1ddd5975` from exact tested head `03ee8265bbcdbe7bca1f50b101c07530b672fab1`; stale [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45) is closed.
+- **Evidence:** `web/next.config.ts`, `web/scripts/admin-user-dialog.browser.test.mjs`, `web/src/app/admin/users/page.tsx`.
+- **Current behavior:** The browser harness allows only `127.0.0.1` as a Next.js development origin. The read-only user dialog is height-bounded with internal scrolling; the real Chromium test mocks Auth API calls and removes Supabase/database environment variables from the spawned server.
+- **Desired behavior:** Preserve responsive/accessibility behavior without introducing browser-to-Supabase access or mutation endpoints.
 - **Acceptance criteria:**
-  - Browser test runs under the existing `npm test` script with Chrome/Chromium and no Supabase/service-role credentials.
-  - Verify 390×844 portrait, 844×390 landscape, and 1280×800 desktop; dialog remains within the viewport and landscape content is reachable by internal scrolling.
-  - Verify initial focus, Tab/Shift+Tab containment, Escape dismissal, focus restoration, and that a non-admin never requests the admin directory API.
-  - Mock only local `/auth/*` and `/api/admin/users*` requests; diagnostics record method/path only, without query strings or credentials.
-  - Rendered UI never exposes password hashes, MFA secrets, refresh tokens, recovery codes, or private passkey material.
-  - Exact-head auth-web and auth-service CI pass; release workflow remains manual-dispatch-only.
-- **Validation:** Original PR #45 exact head passed auth-web CI [run #40258016304](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016304), including browser test result 10 tests / 10 passed / 0 failed, and auth-service CI [run #40258016309](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40258016309). Replacement branch must rerun both checks after rebasing the task queue onto current master.
-- **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or mutation endpoint dependency.
-- **Risk:** Low/medium — dev-only origin configuration and browser verification; no production host is allowlisted and no real Auth/Supabase request is made.
-- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), current [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47), superseded [PR #45](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/45).
+  - [x] Browser test runs under `npm test` with Chromium and no Supabase/service-role credentials.
+  - [x] Verify 390×844 portrait, 844×390 landscape and 1280×800 desktop; landscape content stays internally scrollable.
+  - [x] Verify focus management, Escape dismissal/restoration and that a non-admin never requests the admin directory API.
+  - [x] Mock only local `/auth/*` and `/api/admin/users*` calls; diagnostics record method/path only, without query strings or credentials.
+  - [x] Rendered UI does not expose password hashes, MFA secrets, refresh tokens, recovery codes or private passkey material.
+- **Validation:** Exact tested head `03ee8265bbcdbe7bca1f50b101c07530b672fab1`; auth-web CI [run #40260229780](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260229780) passed (10/10 browser tests), auth-service CI [run #40260229779](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260229779) passed, and post-merge auth-web [run #40260404454](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260404454) and auth-service [run #40260404468](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40260404468) passed on merge SHA `3af07f3749d970fe4ee084a953168c7f1ddd5975`. The Supabase Preview migration-history issue is tracked separately in AUTH-OPS-002.
+- **Dependencies:** Existing read-only UM-3 UI; no schema, audit or mutation endpoint dependency.
+- **Risk:** Low/medium for the UI slice; no production host is allowlisted and no real Auth/Supabase browser request is made.
+- **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16), [PR #47](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/47).
 
 ## Release evidence and guardrails
 
