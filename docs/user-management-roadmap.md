@@ -253,7 +253,7 @@ Stable task IDs, implementation evidence and current blockers are maintained in 
 
 ## Controlled UM-4 database-RPC integration — 2026-10-26 20:33 +07:00
 
-- **Target:** Owner-confirmed shared non-production project `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, region `ap-southeast-1`, PostgreSQL 17.6.1. `list_branches` still returns only non-persistent default `main` / Git `master` with status `MIGRATIONS_FAILED`. No branch was created.
+- **Target:** Owner-confirmed shared non-production project `gtqovpusfyyvxpeezxlo`, organization `jopjvkofwvbnxaajkhlo`, region `ap-southeast-1`, PostgreSQL 17.6.1. `list_branches` still returns only non-persistent default `main` / Git `master` with status `MIGRATIONS_FAILED`. No Supabase branch was created.
 - **Contract preflight:** `public.users.status` is `text NOT NULL DEFAULT 'ACTIVE'`, constrained to `ACTIVE`/`SUSPENDED`; role is constrained to `USER`/`ADMIN`. Live role/status/session-revocation RPC signatures and return types match tracked source; they are `SECURITY DEFINER`, use fixed `search_path=pg_catalog, public, pg_temp`, and grant EXECUTE only to `service_role` and owner `postgres`. The audit writer validates action/outcome/reason/request-id and stores no token, hash, MFA, recovery or passkey material.
 - **Synthetic integration:** One atomic PostgreSQL `DO` statement created three generated synthetic users and temporary refresh sessions, then asserted:
   - active-user refresh-session creation succeeds;
