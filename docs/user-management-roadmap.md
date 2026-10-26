@@ -159,6 +159,7 @@ Implement the protected users directory and confirmation flows. Add API/componen
 
 ### UM-4 — Verification and controlled rollout
 - **Priority/status:** P1 / BLOCKED — the connected shared project is private production, not an integration-test target; Supabase Preview is skipped and no separate non-production target is available in the connected project list.
+- **Security Advisor follow-up:** Supabase Auth leaked-password protection is disabled (HaveIBeenPwned compromised-password check off). Track AUTH-SEC-004; no setting was changed because the target is private production and separate non-production validation plus explicit production-change authorization are required.
 Run backend tests, typecheck, lint/build and frontend typecheck/lint/build. Add integration tests against non-production Supabase for authorization, lifecycle, session revocation, MFA/passkeys and login compatibility. Verify schema, RLS, grants, audit redaction, CORS/cookies and gateway routes. Use dedicated branch and PR; never merge/deploy or run production migrations automatically. Production rollout requires review and existing GitOps gates.
 
 ## Acceptance criteria
