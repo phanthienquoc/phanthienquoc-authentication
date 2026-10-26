@@ -4,7 +4,7 @@ import { AuthRepository } from '../src/auth/auth.repository';
 import { SupabaseClientService } from '../src/db/supabase.client';
 
 const migration = readFileSync(
-  join(__dirname, '..', 'supabase', 'migrations', '20261026053000_auth_user_status_enforcement.sql'),
+  join(__dirname, '..', 'supabase', 'migrations', '20261026080831_auth_user_status_enforcement.sql'),
   'utf8',
 );
 
