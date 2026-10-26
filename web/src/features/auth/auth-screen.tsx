@@ -13,7 +13,7 @@ export function AuthScreen() {
   const [mfaCode, setMfaCode] = useState("");
   const [pendingMfa, setPendingMfa] = useState(false);
   const [useRecovery, setUseRecovery] = useState(false);
-  const { accessToken, user, loading, error, signIn, signUp, completeMfa, pendingMfaUserId, restoreSession, signOut, setError } = useAuthStore();
+  const { accessToken, user, loading, error, signIn, signUp, completeMfa, pendingMfaChallengeToken, cancelMfa, restoreSession, signOut, setError } = useAuthStore();
 
   useEffect(() => { void restoreSession(); }, [restoreSession]);
 
@@ -29,7 +29,7 @@ export function AuthScreen() {
       }
       const result = await signIn(email, password);
       if (result === "mfa") {
-        // API's MFA-required response contains the pending user id; login action below
+        // API's MFA-required response contains an opaque, expiring server-issued challenge token; login action below
         // handles the backend's explicit MFA challenge flow.
         setPendingMfa(true);
       }
@@ -42,8 +42,8 @@ export function AuthScreen() {
     event.preventDefault();
     setError(null);
     try {
-      if (!pendingMfaUserId) throw new Error("MFA challenge context is missing. Please sign in again.");
-      await completeMfa(pendingMfaUserId, mfaCode, useRecovery);
+      if (!pendingMfaChallengeToken) throw new Error("MFA challenge context is missing. Please sign in again.");
+      await completeMfa(pendingMfaChallengeToken, mfaCode, useRecovery);
       setPendingMfa(false);
     } catch {
       // Error state is surfaced by Zustand.
@@ -137,7 +137,7 @@ export function AuthScreen() {
                 {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
                 <button type="submit" disabled={loading} className="w-full rounded-xl bg-[var(--brand)] px-4 py-3.5 text-sm font-bold text-black disabled:opacity-60">{loading ? "Verifying…" : "Verify and sign in"}</button>
                 <button type="button" onClick={() => { setUseRecovery((v) => !v); setMfaCode(""); }} className="w-full py-2 text-sm text-[var(--muted)]">{useRecovery ? "Use authenticator code" : "Use recovery code instead"}</button>
-                <button type="button" onClick={() => { setPendingMfa(false); setMfaCode(""); setError(null); }} className="w-full py-2 text-sm text-[var(--muted)]">Back to sign in</button>
+                <button type="button" onClick={() => { setPendingMfa(false); setMfaCode(""); cancelMfa(); setError(null); }} className="w-full py-2 text-sm text-[var(--muted)]">Back to sign in</button>
               </form>
             </>
           )}

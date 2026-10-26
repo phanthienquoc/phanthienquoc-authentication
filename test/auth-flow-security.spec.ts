@@ -25,6 +25,7 @@ function makeResponse() {
 function makeAuthService(user: AuthUser | null = legacyUser) {
   const repository = {
     findByEmail: jest.fn().mockResolvedValue(user),
+    createMfaLoginChallenge: jest.fn().mockResolvedValue(undefined),
     createRefreshSession: jest.fn().mockResolvedValue(undefined),
     rotateRefreshSession: jest.fn(),
     revokeRefreshToken: jest.fn().mockResolvedValue(true),
@@ -111,11 +112,22 @@ describe('Authentication flow security contracts', () => {
     const { service, repository, jwt } = makeAuthService(mfaUser);
     const { response, cookie } = makeResponse();
 
-    await expect(service.login(
+    const result = await service.login(
       { email: mfaUser.email, password: 'correct-password' } as LoginDto,
       { response },
-    )).resolves.toEqual({ mfaRequired: true, userId: mfaUser.id });
+    );
 
+    expect(result).toEqual({
+      mfaRequired: true,
+      challengeToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      mfaExpiresInSeconds: 300,
+    });
+    expect(result).not.toHaveProperty('userId');
+    expect(repository.createMfaLoginChallenge).toHaveBeenCalledWith({
+      userId: mfaUser.id,
+      tokenHash: expect.stringMatching(/^hashed:/),
+      expiresAt: expect.any(Date),
+    });
     expect(repository.createRefreshSession).not.toHaveBeenCalled();
     expect(jwt.issue).not.toHaveBeenCalled();
     expect(cookie).not.toHaveBeenCalled();

@@ -51,6 +51,11 @@ export class AuthRepository {
       '/rpc/auth_replace_mfa_recovery_codes',
       '/rpc/auth_consume_mfa_recovery_code',
       '/rpc/auth_consume_passkey_challenge',
+      '/rpc/auth_create_mfa_login_challenge',
+      '/rpc/auth_get_mfa_login_challenge',
+      '/rpc/auth_record_mfa_login_failure',
+      '/rpc/auth_consume_mfa_login_challenge',
+      '/rpc/auth_consume_mfa_login_recovery',
     ] as const;
     if (requiredRpcPaths.some((path) => !paths.has(path))) {
       this.persistenceError();
@@ -110,6 +115,50 @@ export class AuthRepository {
     });
     if (error) this.persistenceError();
     return data === true;
+  }
+
+  async createMfaLoginChallenge(input: { userId: string; tokenHash: string; expiresAt: Date }): Promise<void> {
+    const { data, error } = await this.supabase.db.rpc('auth_create_mfa_login_challenge', {
+      p_user_id: input.userId,
+      p_token_hash: input.tokenHash,
+      p_expires_at: input.expiresAt.toISOString(),
+    });
+    if (error) this.persistenceError();
+    if (data !== true) throw new ServiceUnavailableException('Unable to establish MFA challenge');
+  }
+
+  async findMfaLoginChallengeUserId(tokenHash: string): Promise<string | null> {
+    const { data, error } = await this.supabase.db.rpc('auth_get_mfa_login_challenge', {
+      p_token_hash: tokenHash,
+    });
+    if (error) this.persistenceError();
+    const rows = data as Array<{ user_id: string }> | null;
+    return rows?.[0]?.user_id ?? null;
+  }
+
+  async recordMfaLoginFailure(tokenHash: string): Promise<boolean> {
+    const { data, error } = await this.supabase.db.rpc('auth_record_mfa_login_failure', {
+      p_token_hash: tokenHash,
+    });
+    if (error) this.persistenceError();
+    return data === true;
+  }
+
+  async consumeMfaLoginChallenge(tokenHash: string): Promise<string | null> {
+    const { data, error } = await this.supabase.db.rpc('auth_consume_mfa_login_challenge', {
+      p_token_hash: tokenHash,
+    });
+    if (error) this.persistenceError();
+    return typeof data === 'string' ? data : null;
+  }
+
+  async consumeMfaLoginRecovery(tokenHash: string, codeHash: string): Promise<string | null> {
+    const { data, error } = await this.supabase.db.rpc('auth_consume_mfa_login_recovery', {
+      p_token_hash: tokenHash,
+      p_code_hash: codeHash,
+    });
+    if (error) this.persistenceError();
+    return typeof data === 'string' ? data : null;
   }
 
   async createRefreshSession(input: {

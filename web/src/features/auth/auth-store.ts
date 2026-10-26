@@ -7,13 +7,14 @@ import type { AuthUser } from "@lib/auth/types";
 type AuthState = {
   accessToken: string | null;
   user: AuthUser | null;
-  pendingMfaUserId: string | null;
+  pendingMfaChallengeToken: string | null;
   loading: boolean;
   error: string | null;
   setError: (error: string | null) => void;
   signIn: (email: string, password: string) => Promise<"authenticated" | "mfa">;
   signUp: (email: string, password: string) => Promise<void>;
-  completeMfa: (userId: string, code: string, recovery?: boolean) => Promise<void>;
+  completeMfa: (challengeToken: string, code: string, recovery?: boolean) => Promise<void>;
+  cancelMfa: () => void;
   restoreSession: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -21,21 +22,21 @@ type AuthState = {
 export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   user: null,
-  pendingMfaUserId: null,
+  pendingMfaChallengeToken: null,
   loading: false,
   error: null,
   setError: (error) => set({ error }),
   signIn: async (email, password) => {
-    set({ loading: true, error: null, pendingMfaUserId: null });
+    set({ loading: true, error: null, pendingMfaChallengeToken: null });
     try {
       const result = await authApi.login(email, password);
-      if (result.mfaRequired && result.userId) {
-        set({ pendingMfaUserId: result.userId, loading: false });
+      if (result.mfaRequired && result.challengeToken) {
+        set({ pendingMfaChallengeToken: result.challengeToken, loading: false });
         return "mfa";
       }
       if (!result.accessToken) throw new Error("The auth service did not return an access token.");
       const { user } = await authApi.me(result.accessToken);
-      set({ accessToken: result.accessToken, user, pendingMfaUserId: null, loading: false });
+      set({ accessToken: result.accessToken, user, pendingMfaChallengeToken: null, loading: false });
       return "authenticated";
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : "Could not sign in." });
@@ -52,15 +53,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
   },
-  completeMfa: async (userId, code, recovery = false) => {
+  cancelMfa: () => set({ pendingMfaChallengeToken: null, error: null }),
+  completeMfa: async (challengeToken, code, recovery = false) => {
     set({ loading: true, error: null });
     try {
       const result = recovery
-        ? await authApi.mfaRecovery(userId, code)
-        : await authApi.mfaLogin(userId, code);
+        ? await authApi.mfaRecovery(challengeToken, code)
+        : await authApi.mfaLogin(challengeToken, code);
       if (!result.accessToken) throw new Error("The auth service did not return an access token.");
       const { user } = await authApi.me(result.accessToken);
-      set({ accessToken: result.accessToken, user, pendingMfaUserId: null, loading: false });
+      set({ accessToken: result.accessToken, user, pendingMfaChallengeToken: null, loading: false });
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : "Could not verify the code." });
       throw error;
@@ -89,7 +91,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ error: error instanceof Error ? error.message : "Could not sign out." });
       throw error;
     } finally {
-      set({ accessToken: null, user: null, pendingMfaUserId: null, loading: false });
+      set({ accessToken: null, user: null, pendingMfaChallengeToken: null, loading: false });
     }
   },
 }));

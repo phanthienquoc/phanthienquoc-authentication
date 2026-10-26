@@ -146,12 +146,25 @@ export class AuthController {
     @Headers('x-forwarded-for') forwardedFor: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const user = await this.repository.findById(body.userId);
+    const tokenHash = this.auth.hashMfaChallengeToken(body.challengeToken);
+    const challengeUserId = await this.repository.findMfaLoginChallengeUserId(tokenHash);
+    if (!challengeUserId) throw new UnauthorizedException('Invalid or expired MFA challenge');
+
+    const user = await this.repository.findById(challengeUserId);
     if (!user?.mfaEnabled || !user.mfaSecretEncrypted) {
-      throw new UnauthorizedException('Invalid MFA configuration');
+      throw new UnauthorizedException('Invalid or expired MFA challenge');
     }
+
     if (!this.mfa.verifyTotp(this.mfaCrypto.decrypt(user.mfaSecretEncrypted), body.code)) {
+      await this.repository.recordMfaLoginFailure(tokenHash);
       throw new UnauthorizedException('Invalid MFA code');
+    }
+
+    // Claim the challenge only after TOTP validation; the consume RPC is atomic
+    // and ensures concurrent/replayed requests cannot both issue sessions.
+    const consumedUserId = await this.repository.consumeMfaLoginChallenge(tokenHash);
+    if (consumedUserId !== user.id) {
+      throw new UnauthorizedException('Invalid or expired MFA challenge');
     }
     return this.auth.completeMfaLogin(user, {
       response, userAgent, ip: this.clientIp(forwardedFor),
@@ -165,10 +178,16 @@ export class AuthController {
     @Headers('x-forwarded-for') forwardedFor: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const user = await this.repository.findById(body.userId);
-    if (!user?.mfaEnabled || !(await this.repository.consumeRecoveryCode(user.id, this.hash(body.code)))) {
-      throw new UnauthorizedException('Invalid recovery code');
-    }
+    // Challenge consumption and one-time recovery-code consumption share a
+    // single database transaction, preventing a code/challenge replay race.
+    const userId = await this.repository.consumeMfaLoginRecovery(
+      this.auth.hashMfaChallengeToken(body.challengeToken),
+      this.hash(body.code),
+    );
+    if (!userId) throw new UnauthorizedException('Invalid or expired MFA challenge or recovery code');
+
+    const user = await this.repository.findById(userId);
+    if (!user?.mfaEnabled) throw new UnauthorizedException('MFA is not enabled for this account');
     return this.auth.completeMfaRecoveryLogin(user, {
       response, userAgent, ip: this.clientIp(forwardedFor),
     });
