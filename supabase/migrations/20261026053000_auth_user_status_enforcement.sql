@@ -381,20 +381,40 @@ declare
   v_challenge_id uuid;
   v_user_id uuid;
 begin
-  select c.id, c.user_id
-  into v_challenge_id, v_user_id
+  if p_token_hash is null or p_token_hash !~ '^[a-f0-9]{64}$' then
+    return null;
+  end if;
+
+  -- Lock order is user first, then challenge, matching account lifecycle changes.
+  select c.user_id into v_user_id
   from public.auth_mfa_login_challenges c
-  join public.users u on u.id = c.user_id
   where c.token_hash = p_token_hash
-    and p_token_hash ~ '^[a-f0-9]{64}$'
+    and c.expires_at > clock_timestamp()
+    and c.consumed_at is null
+    and c.locked_at is null
+    and c.failed_attempts < 5;
+
+  if not found then return null; end if;
+
+  perform 1
+  from public.users u
+  where u.id = v_user_id
+    and u.status = 'ACTIVE'
+    and u.mfa_enabled = true
+    and u.mfa_secret_encrypted is not null
+  for update;
+
+  if not found then return null; end if;
+
+  select c.id into v_challenge_id
+  from public.auth_mfa_login_challenges c
+  where c.token_hash = p_token_hash
+    and c.user_id = v_user_id
     and c.expires_at > clock_timestamp()
     and c.consumed_at is null
     and c.locked_at is null
     and c.failed_attempts < 5
-    and u.mfa_enabled = true
-    and u.mfa_secret_encrypted is not null
-    and u.status = 'ACTIVE'
-  for update of c;
+  for update;
 
   if not found then return null; end if;
 
@@ -430,19 +450,36 @@ begin
     return null;
   end if;
 
-  select c.id, c.user_id
-  into v_challenge_id, v_user_id
+  select c.user_id into v_user_id
   from public.auth_mfa_login_challenges c
-  join public.users u on u.id = c.user_id
   where c.token_hash = p_token_hash
     and c.expires_at > clock_timestamp()
     and c.consumed_at is null
     and c.locked_at is null
-    and c.failed_attempts < 5
+    and c.failed_attempts < 5;
+
+  if not found then return null; end if;
+
+  -- Keep user -> challenge -> recovery-code lock ordering consistent.
+  perform 1
+  from public.users u
+  where u.id = v_user_id
+    and u.status = 'ACTIVE'
     and u.mfa_enabled = true
     and u.mfa_secret_encrypted is not null
-    and u.status = 'ACTIVE'
-  for update of c;
+  for update;
+
+  if not found then return null; end if;
+
+  select c.id into v_challenge_id
+  from public.auth_mfa_login_challenges c
+  where c.token_hash = p_token_hash
+    and c.user_id = v_user_id
+    and c.expires_at > clock_timestamp()
+    and c.consumed_at is null
+    and c.locked_at is null
+    and c.failed_attempts < 5
+  for update;
 
   if not found then return null; end if;
 
