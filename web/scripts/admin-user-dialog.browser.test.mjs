@@ -63,6 +63,7 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
   let currentRole = "ADMIN";
   let managedUser = { id: "11111111-1111-4111-8111-111111111111", email: "alice@example.com", role: "USER", status: "ACTIVE", mfaEnabled: false };
   let failNextMutation = false;
+  let holdNextMutation = false;
   let adminUsersCalls = 0;
   const mutationRequests = [];
   const protocolErrors = [];
@@ -202,6 +203,10 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
       } else {
         status = 404;
         payload = { message: "Unexpected mocked API path." };
+      }
+      if (holdNextMutation) {
+        holdNextMutation = false;
+        await delay(1200);
       }
       await send("Fetch.fulfillRequest", {
         requestId: message.params.requestId,
@@ -385,7 +390,11 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
     await waitFor("document.querySelector('[data-testid=\"confirm-mutation\"]')?.textContent?.includes('Confirm role change')", "role confirmation");
     assert.equal(mutationRequests.length, mutationCountBeforeRoleConfirm, "Role mutation must not be sent before explicit confirmation.");
     await chooseReason("SECURITY_REVIEW");
-    await evaluate("document.querySelector('[data-testid=\"confirm-mutation\"]')?.click()");
+    holdNextMutation = true;
+    await evaluate("document.querySelector('[data-testid=\\\"confirm-mutation\\\"]')?.click()");
+    await waitFor("document.querySelector('[data-testid=\\\"confirm-mutation\\\"]')?.textContent?.includes('Working…')", "role mutation enters pending state");
+    await pressKey("Escape", "Escape", 27);
+    await waitFor("Boolean(document.querySelector('[role=\\\"dialog\\\"]'))", "dialog stays open while a privileged mutation is pending");
     await waitFor("document.body.innerText.includes('Role changed to ADMIN.')", "role mutation success");
     assert.equal(mutationRequests.at(-1).method, "PATCH");
     assert.equal(mutationRequests.at(-1).body.role, "ADMIN");
