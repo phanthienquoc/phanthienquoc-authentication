@@ -7,6 +7,14 @@
 - **Scope:** This roadmap governs User Management and authentication work only; it does not change TCE or Media consumers.
 - **Change record (2026-10-26):** Earlier scoped RPC, audit and MFA-challenge migrations are present in the connected project's ledger. This run performed read-only introspection only: no migration apply, Supabase branch creation/reset/merge, production schema/data mutation, application deployment or release. The ref `gtqovpusfyyvxpeezxlo` is explicitly documented here, but `.env.example` remains a placeholder and TCE's `SUPABASE_URL` is stored in GitHub secrets, so the runtime URL-to-ref mapping is not independently confirmed. The connected environment must not be described as verified non-production.
 
+## Latest read-only Supabase checkpoint (2026-10-26 13:53 +07:00)
+
+- `list_projects/get_project` confirms the only connected project is `gtqovpusfyyvxpeezxlo` (`ap-southeast-1`, Postgres 17.6.1, API status `ACTIVE_HEALTHY`). `list_branches` returns only default `main` / Git `master`, `persistent=false`, `status=MIGRATIONS_FAILED`. The repo-to-runtime project mapping and production/non-production classification remain unverified.
+- Live `public.users` columns remain `id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,created_at,updated_at`; `status` is absent. The `auth_create_refresh_session` RPC required by the source-only suspension-enforcement migration is absent, as are `auth_admin_update_user_role`, `auth_admin_update_user_status`, and `auth_admin_revoke_user_sessions`.
+- Live core auth persistence RPCs, `auth_record_admin_audit_event`, and five MFA challenge RPCs have fixed `search_path=pg_catalog, public, pg_temp`, `SECURITY DEFINER`, no EXECUTE for `anon`/`authenticated`, and EXECUTE for `service_role` plus owner `postgres`. Scoped Auth tables remain RLS-enabled; no direct browser-role grants were found on users, audit or challenge tables.
+- The migration ledger's latest Auth-specific entry is `20261026040431 auth_server_issued_mfa_login_challenges`; the source-only status/lifecycle migrations are not applied to this catalog. Three remote-only migration versions and the Keycloak version mismatch remain unresolved. Security/performance advisor totals are project-wide (34 RLS-enabled/no-policy findings; 15 unindexed foreign keys), not Auth-only.
+- No account rows or raw secrets were read. No migration, Supabase branch operation, schema/data mutation, Edge Function deployment, app release or production deployment occurred. Keep PRs #55, #59 and #60 open until the target is explicitly confirmed safe non-production and migration provenance is reconciled.
+
 ## Verified current state
 
 - `src/auth/auth.repository.ts` uses the existing shared Supabase project and `@supabase/supabase-js`; live `public.users` columns are `id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,created_at,updated_at`. There is no status/suspension column.
