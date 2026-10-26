@@ -321,7 +321,7 @@ test("admin detail dialog supports real keyboard focus behavior and responsive v
       if (viewport.name === "short landscape phone") {
         assert.equal(metrics.overflowY, "auto", "short landscape dialog content must be scrollable");
         assert.ok(metrics.scrollHeight > metrics.clientHeight, "short landscape dialog must constrain content height and expose internal scrolling");
-        const reachedBottom = await evaluate("(() => { const dialog = document.querySelector('[role=\\\"dialog\\\"]'); dialog.scrollTop = dialog.scrollHeight; return dialog.scrollTop > 0 && dialog.scrollTop + dialog.clientHeight >= dialog.scrollHeight - 1; })()");
+        const reachedBottom = await evaluate("(() => { const dialog = document.querySelector('[role=\"dialog\"]'); dialog.scrollTop = dialog.scrollHeight; return dialog.scrollTop > 0 && dialog.scrollTop + dialog.clientHeight >= dialog.scrollHeight - 1; })()");
         assert.equal(reachedBottom, true, "short landscape dialog content must be reachable by scrolling");
       }
       assert.match(metrics.text, /alice@example\.com/);
