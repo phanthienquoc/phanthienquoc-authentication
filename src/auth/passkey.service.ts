@@ -113,7 +113,7 @@ export class PasskeyService {
     );
     const user = await this.users.findById(credential.user_id);
     if (!user) throw new UnauthorizedException();
-    if (user.mfaEnabled) return { mfaRequired: true as const, userId: user.id };
+    if (user.mfaEnabled) return this.auth.beginMfaLogin(user);
     return this.auth.issueLoginForUser(user, { ip, userAgent, response: httpResponse });
   }
 
