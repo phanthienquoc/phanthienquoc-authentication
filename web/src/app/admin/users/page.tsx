@@ -225,7 +225,7 @@ export default function AdminUsersPage() {
 
       {selected && (
         <div className="fixed inset-0 z-10 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
-          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="user-detail-title" tabIndex={-1} className="w-full max-w-lg max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain rounded-t-3xl border border-[var(--line)] bg-[var(--panel)] p-6 sm:rounded-3xl">
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="user-detail-title" tabIndex={-1} className="w-full max-w-lg max-h-[calc(100dvh_-_3rem)] overflow-y-auto overscroll-contain rounded-t-3xl border border-[var(--line)] bg-[var(--panel)] p-6 sm:rounded-3xl">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--brand)]">Account details</p><h2 id="user-detail-title" className="mt-2 text-xl font-semibold">User profile</h2></div>
               <button ref={closeButtonRef} type="button" onClick={() => setSelected(null)} aria-label="Close user details" className="rounded-lg border border-[var(--line)] px-3 py-1.5">Close</button>
