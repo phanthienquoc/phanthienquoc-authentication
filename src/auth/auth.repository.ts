@@ -61,6 +61,9 @@ export class AuthRepository {
       '/rpc/auth_consume_mfa_login_challenge',
       '/rpc/auth_consume_mfa_login_recovery',
       '/rpc/auth_create_refresh_session',
+      '/rpc/auth_admin_update_user_role',
+      '/rpc/auth_admin_update_user_status',
+      '/rpc/auth_admin_revoke_user_sessions',
     ] as const;
     if (requiredRpcPaths.some((path) => !paths.has(path))) {
       this.persistenceError();
