@@ -4,7 +4,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '../src/auth/jwt.service';
 import { SupabaseClientService } from '../src/db/supabase.client';
-import { AdminAuditService } from '../src/users/admin-audit.service';
 import { UsersManagementModule } from '../src/users/users-management.module';
 
 const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
@@ -102,7 +101,7 @@ async function createHarness(options: HarnessOptions = {}) {
     url: `http://127.0.0.1:${address.port}`,
     from,
     rpc,
-    userQuery,
+    // Expose the query builder only through the mocked Supabase client.
   };
 }
 
