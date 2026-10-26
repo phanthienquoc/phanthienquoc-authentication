@@ -23,7 +23,7 @@
 - Live public.users.status exists as text NOT NULL DEFAULT 'ACTIVE', with users_status_check allowing ACTIVE | SUSPENDED. Live auth_create_refresh_session(uuid,uuid,uuid,text,timestamptz,text,text) and auth_record_admin_audit_event(...) are SECURITY DEFINER with fixed search_path=pg_catalog, public, pg_temp; EXECUTE is limited to service_role and owner postgres. Browser roles cannot execute these RPCs or directly read the scoped Auth tables.
 - PR #55 is merged at 7d98c9b953acdd5e180b9ac2fc49ad4dba7b6bb7; the MFA challenge table/RPCs are on master and present in the live catalog. PR #60 remains open at 657caeea7c901291252219cdc09b8bd9048d40f7; its lifecycle migration 20261026054000_auth_admin_user_lifecycle_rpcs.sql is absent from the live ledger, and its base is the closed/unmerged PR #59 branch rather than master.
 - PR #60 validate passed, but Supabase Preview is skipped, not a migration/integration pass. GitHub/Supabase tools do not expose the connected repository or deploy-to-production toggle; Auth .env.example is a placeholder and the runtime secret value is hidden.
-- Security Advisor: 34 project-wide rls_enabled_no_policy findings, including server-only Auth tables with RLS and intentionally no policies; do not add broad policies to silence the count. Performance Advisor: 15 project-wide unindexed foreign keys, including auth_passkey_challenges.user_id and refresh_sessions.replaced_by. A bounded 24-hour SQLSTATE log query for 42P01, 42883, 42501, 23505, and 40P01 returned no rows. The earlier 42P01 refresh-RPC log entry predates the 20261026030920 contract reconciliation.
+- Security Advisor: 34 project-wide rls_enabled_no_policy findings, including the seven scoped Auth tables with no policies; do not add broad policies because browser-role grants are absent. It also flags Supabase Auth leaked-password protection as disabled (HaveIBeenPwned compromised-password check off); no setting was changed. The sole security_definer_view finding is public.tce_stock_event_market_metrics in TCE-dashboard, and all eight mutable-search-path function findings are TCE/Keycloak functions; no unrelated schema was changed. Performance Advisor: 15 project-wide unindexed foreign keys, including auth_passkey_challenges.user_id and refresh_sessions.replaced_by; 137 unused indexes include recently added Auth indexes, which must not be dropped without usage evidence.
 - No account rows/raw secrets were read, no migration was applied, no Supabase branch was created/reset/merged, no lifecycle RPC was executed, and no production release/trading action occurred.
 
 ## Active tasks
@@ -115,6 +115,22 @@
 - **Dependencies:** Existing RPC contract reconciliation is merged. This task does not resolve the separate server-issued MFA first-factor challenge tracked by AUTH-SEC-001, nor does it claim live DB integration coverage.
 - **Risk:** Low — test-only runtime scope, in-memory mocks, no database mutation.
 - **Links:** [roadmap](../user-management-roadmap.md), [PR #52](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/52), [legacy PR #10](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/10).
+
+### AUTH-SEC-004 — Review leaked-password protection setting
+
+- **Priority/status:** P1 / OPEN — Supabase Auth leaked-password protection is currently disabled; no production setting change was authorized or performed.
+- **Evidence:** The connected project's Security Advisor reports auth_leaked_password_protection disabled and recommends the HaveIBeenPwned.org compromised-password check. The owner classified the shared target as private production; the only listed branch is non-persistent main / Git master with MIGRATIONS_FAILED, and no separate non-production project is available through the connected project list.
+- **Current behavior:** Supabase Auth does not currently block compromised passwords using the leaked-password protection feature. This is a dashboard/auth configuration finding, not a database migration. The project-wide advisor's other findings include a security-definer view in TCE-dashboard and mutable-search-path functions in TCE/Keycloak; those remain outside this Auth setting task.
+- **Desired behavior:** Decide the setting deliberately, validate signup/password-change/reset compatibility in a separate safe non-production environment, and enable leaked-password protection only after the owner explicitly authorizes the exact production configuration change.
+- **Acceptance criteria:**
+  - [x] Capture the advisor finding without changing settings or reading account data.
+  - [ ] Confirm a separate non-production Auth environment and the expected password-policy behavior.
+  - [ ] Obtain explicit authorization for the exact production setting change; this task does not grant that authorization.
+  - [ ] After approved change, verify the setting and run signup/password-change/reset regression tests.
+- **Validation:** Read-only Security Advisor result; no Supabase setting, schema, data, branch, function or deployment was changed.
+- **Dependencies:** AUTH-OPS-002 environment/integration mapping; separate non-production target; explicit owner authorization for any production setting change.
+- **Risk:** Compromised passwords may be accepted; enabling protection may affect signup/password-change/reset flows and must be tested.
+- **Links:** [Supabase password security documentation](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection), [Roadmap](../user-management-roadmap.md).
 
 ### AUTH-UM-001A — Admin principal, guard and safe response projection (UM-1 foundation)
 
