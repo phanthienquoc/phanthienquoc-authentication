@@ -184,7 +184,7 @@
 
 - **Priority/status:** P1 / IN PR #60 — audit-atomic role/status/session RPCs and guarded API routes on [feat/auth-um-2-lifecycle-api-20261026](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um-2-lifecycle-api-20261026). PR #60 is stacked on PR #59; neither migration has been applied. The only Supabase branch is default/base and must be treated as production-equivalent until a safe non-production target is confirmed.
 - **Evidence:** src/users/users-management.controller.ts, src/users/users-management.service.ts, src/users/admin.guard.ts, src/users/admin-audit.service.ts, migration 20261026035340_auth_admin_audit_events.sql, live read-only catalog/ACL checks, and web/src/app/admin/users/page.tsx plus web/src/services/auth-api.ts. The existing UI calls the backend API and does not query Supabase directly.
-- **Current behavior:** master has guarded GET-only user list/detail. PR #60 adds PATCH role/status and POST revoke-sessions routes behind AdminGuard and service-only RPCs, plus status projection/filtering for the read-only directory. No UI mutation controls are added.
+- **Current behavior:** master still has guarded GET-only user list/detail and no mutation controls. PR #60 adds PATCH role/status and POST revoke-sessions routes behind AdminGuard and service-only RPCs, plus status projection/filtering and confirmation-based role/status/session controls in the admin UI. The browser calls only the NestJS API; no Supabase client is added to the UI. These changes are source-only and remain unmerged; the browser test mocks Auth/admin API responses and is not database integration evidence.
 - **Desired behavior:** Active database-backed administrators can change legacy account roles, suspend/reactivate accounts, and revoke all refresh sessions. Every mutation is one transaction with an allowlisted audit event; suspension and session revocation are atomic.
 - **Acceptance criteria:**
   - [x] Require an active ADMIN actor in AdminGuard and independently inside each RPC.
@@ -192,9 +192,8 @@
   - [x] Revoke all active refresh sessions in the same transaction as suspension; repeated suspension and reactivation also clear stale sessions, and reactivation does not restore sessions.
   - [x] Make audit persistence atomic; an audit failure rolls back the mutation.
   - [x] Restrict RPC EXECUTE to service_role; use fixed search_path and allowlisted response fields.
-  - [x] Keep signup fixed to USER, hard-delete absent, UI read-only, and Keycloak identities separate.
+  - [x] Keep signup fixed to USER, hard-delete absent, and Keycloak identities separate; mutation controls call only the protected NestJS API and remain off master until this stack is safe to merge.
   - [x] Add controller/service and static migration-contract tests for routes, authorization, last-admin protection, audit, grants and secret redaction.
-  - [x] Audit authenticated non-admin/suspended access denials with allowlisted metadata only; do not log bearer tokens or unverified identities.
   - [x] Audit authenticated non-admin/suspended access denials with allowlisted metadata only; do not log bearer tokens or unverified identities.
   - [x] Recheck exact-head Auth service CI after the additional deny-by-default assertions; code head aeed2451c5f56fbfa8010139bc4583383cc8daee passed run #40276030472 and docs-only head 58872d7a3d1b8a2f3b53fbe7e0c99d3b4ef4a5e1 passed run #40276222884.
   - [ ] Validate SQL/RPC behavior on an explicitly approved non-production Supabase target.
@@ -206,33 +205,34 @@
 
 ### AUTH-UM-003 — Protected admin users UI (UM-3)
 
-- **Priority/status:** P2 / PARTIALLY DONE — read-only directory and contract regression tests are merged; browser-level keyboard/responsive coverage and all privileged mutation flows remain open.
+- **Priority/status:** P2 / PARTIALLY DONE — the read-only directory, contract tests, and keyboard/focus/responsive browser verification are merged (PR #47 / AUTH-UM-003D). PR #60 adds confirmation-based mutation controls and mocked-API browser coverage only on its unmerged stack; UM-4 live integration remains blocked.
 - **Evidence:** `web/src/app/admin/users/page.tsx`, `web/src/services/auth-api.ts`, `web/src/features/auth/auth-store.ts`, `web/scripts/admin-user-query.mjs`, `web/scripts/admin-user-query.test.mjs`, `web/scripts/admin-user-contract.test.mjs`.
-- **Current behavior:** PR #19 provides the read-only `/admin/users` directory with search, role filter, pagination and detail panel. PR #24 extracts the query builder and adds dependency-free contract tests for query encoding, NestJS-only API access, Bearer auth, role gate, response allowlist, read-only controls, loading/empty/error states, dialog labels and explicit aliases. No mutation controls are exposed.
-- **Desired behavior:** A responsive, accessible admin workflow for supported account lifecycle actions after the API and audit gates exist.
+- **Current behavior:** PR #19 provides the read-only `/admin/users` directory with search, role filter, pagination and detail panel. PR #24 extracts the query builder and adds dependency-free contract tests for query encoding, NestJS-only API access, Bearer auth, role gate, response allowlist, read-only controls, loading/empty/error states, dialog labels and explicit aliases. Master remains read-only. The stacked PR #60 branch adds confirmation-based role/status/session controls behind the corresponding protected NestJS routes; browser calls remain API-only, and the test harness uses mocked responses.
+- **Desired behavior:** A responsive, accessible admin workflow for supported account lifecycle actions, with the NestJS API authoritative and schema/audit/concurrency gates satisfied before the feature reaches master.
 - **Acceptance criteria:**
   - No direct browser-to-Supabase access or sensitive fields in the UI.
   - Loading/empty/error states, keyboard-accessible confirmation dialogs and clear provider labels.
-  - Mutation controls are not shown until matching protected API routes and tests exist.
+  - On master, mutation controls remain absent until matching protected API routes, authorization/audit/concurrency tests, and the required schema are safely integrated; PR #60 controls must use the protected NestJS API only.
   - UI role checks remain supplementary; server-side authorization is authoritative.
 - **Validation:** PR #24 merged at `52864661b10bdd35feedb3266040700033d05238` from exact tested head `19e4d3b04b75cff5d38e70b6d01aa920a3eb1e02`. [Auth-web CI #40212531075](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531075) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and the frontend container build. [Auth-service CI #40212531176](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40212531176) passed backend tests, typecheck, build and container build. Post-merge runs #40212871633 and #40212871603 passed. The Supabase Preview app check on the subsequent PR #26 merge SHA `97b8d7498190884715bd1e9c657d2e432de31feb` failed with `Remote migration versions not found in local migrations directory`; the PR #24 merge check itself was skipped because no Supabase branch was associated. This is tracked under AUTH-UM-000 and no migration was applied.
-- **Remaining:** Browser-level dialog verification and responsive layout regression coverage are tracked by AUTH-UM-003D below. The earlier browser harness failure was reproduced as a blocked cross-origin `/_next/hmr` request from `127.0.0.1`; the narrow development-origin fix and exact-head test evidence are recorded separately so this merged dialog task does not duplicate the follow-up status.- **Dependencies:** AUTH-UM-002 for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
+- **Remaining:** Browser-level verification for the merged read-only dialog is complete in AUTH-UM-003D. PR #60 adds separate mutation-confirmation coverage using mocked APIs only; live non-production integration remains blocked. The earlier cross-origin `/_next/hmr` harness issue and development-origin fix are recorded in AUTH-UM-003D.
+- **Dependencies:** AUTH-UM-002B for mutation controls; AUTH-UM-000/AUTH-UM-001B for safe backend lifecycle operations.
 - **Risk:** Medium — UI/API contract mismatch can break workflows, but must not weaken server authorization.
 - **Links:** [PR #19](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/19), [PR #24](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/24), [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18).
 
 
 ### AUTH-UM-003A — Keyboard-accessible read-only user detail dialog
 
-- **Priority/status:** P2 / IMPLEMENTED — merged PR #29 at `c3745d755af470dbfb4e3c27afac6d564264b90b` from exact tested head `b37238b21cc6ba9bc03113854b28554b5c15a24d`; browser-level verification remains open.
+- **Priority/status:** P2 / DONE — merged PR #29 at `c3745d755af470dbfb4e3c27afac6d564264b90b`; later browser-level verification is complete in PR #47 / AUTH-UM-003D.
 - **Evidence:** web/src/app/admin/users/page.tsx, web/scripts/admin-user-contract.test.mjs.
-- **Current behavior:** The read-only detail panel has dialog semantics and a close button but does not yet manage initial focus, contain keyboard tabbing, dismiss with Escape, or restore focus to the row that opened it.
+- **Current behavior:** The merged read-only detail dialog uses accessible semantics, initial focus, Tab/Shift+Tab containment, Escape dismissal, focus restoration, and viewport-bounded scrolling; browser-level behavior is verified by AUTH-UM-003D.
 - **Desired behavior:** Opening the panel focuses its close control; Tab/Shift+Tab remain inside the modal dialog; Escape closes it; closing restores focus to the originating account row.
 - **Acceptance criteria:**
-  - Preserve the read-only directory and current API contract; no mutation UI.
+  - Keep this subtask scoped to the read-only detail dialog; mutation controls are tracked separately under AUTH-UM-002B and must call the protected NestJS API.
   - Use accessible dialog semantics and keyboard dismissal.
   - Keep focus inside the open dialog and restore focus to the trigger after close.
   - Add regression coverage for the keyboard/focus contract without adding an unapproved test dependency.
-- **Validation:** Exact tested head `b37238b21cc6ba9bc03113854b28554b5c15a24d`: [auth-web CI #40214171528](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171528) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and frontend container build; [auth-service CI #40214171499](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171499) passed `npm test`, `npm run typecheck`, `npm run build` and container build. The PR diff was reviewed; no server/auth/data-access changes. These are source-level contract tests, not browser-level interaction proof.
+- **Validation:** Exact tested head `b37238b21cc6ba9bc03113854b28554b5c15a24d`: [auth-web CI #40214171528](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171528) passed `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` and frontend container build; [auth-service CI #40214171499](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40214171499) passed `npm test`, `npm run typecheck`, `npm run build` and container build. The PR diff was reviewed; no server/auth/data-access changes. PR #29 itself supplied source-level contract tests; later PR #47 supplies the browser-level interaction proof recorded under AUTH-UM-003D.
 - **Dependencies:** Existing read-only UM-3 UI; no schema or audit dependencies.
 - **Risk:** Low to medium — incorrect focus cleanup could leave keyboard users outside the modal; no server authorization or data-access behavior changes.
 - **Safety:** No Supabase access added to the browser, no schema changes, no production release or account mutations.
