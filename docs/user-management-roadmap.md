@@ -60,7 +60,7 @@
 
 The source migration `20261026030920_auth_persistence_rpc_contract_reconcile.sql` and browser-grant revocation migration `20261026032152_revoke_browser_auth_table_privileges.sql` are tracked on master. Read-only catalog checks confirm the four source-required RPC signatures and service-role/owner EXECUTE privileges. The live ledger also contains the later audit versions `20261026035340`/`20261026035431` and MFA challenge version `20261026040431`; audit source is on master, while MFA challenge source remains on PR #55.
 
-The current project branch status remains `MIGRATIONS_FAILED`, and production/non-production classification is unknown. The Supabase Preview check is skipped because no branch is associated and preview-branch creation is disabled. This run did not apply a migration or create a Supabase branch.
+Historical checkpoint, superseded by the owner's 2026-10-26 non-production instruction: the branch reported `MIGRATIONS_FAILED` and Supabase Preview was skipped because no branch was associated and preview-branch creation was disabled. That skipped check is not integration evidence; no Supabase branch was created.
 
 A single aggregate log query found `auth_rotate_refresh_session` with SQLSTATE `42P01` at `2026-10-26T00:32:48Z`, before `20261026030920`; the same query returned no matching later error. Recheck only after an approved non-production integration test; do not execute mutating RPCs against the current target.
 
