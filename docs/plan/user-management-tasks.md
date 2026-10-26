@@ -1,6 +1,6 @@
 # Authentication — User Management Task Queue
 
-**Last audited:** 2026-10-27 04:33 +07:00 (fresh Supabase schema/RPC/ACL/ledger/advisor/log inspection; UM-4 audit-failure HTTP tests added)
+**Last audited:** 2026-10-27 04:38 +07:00 (Auth CI pass on test/evidence head; exact-head rerun pending after documentation follow-up) (fresh Supabase schema/RPC/ACL/ledger/advisor/log inspection; UM-4 audit-failure HTTP tests added)
 **Default branch:** `master`  
 **Architecture baseline:** [`docs/user-management-roadmap.md`](../user-management-roadmap.md)  
 **Canonical user-management tracker:** [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16)  
@@ -577,11 +577,11 @@
 
 ### AUTH-UM-004D — Fail-closed audit persistence at the HTTP boundary
 
-- **Priority/status:** P1 / IMPLEMENTED — exact-head CI pending.
+- **Priority/status:** P1 / IMPLEMENTED — test/evidence head passed CI; documentation follow-up recheck pending.
 - **Evidence:** On the existing dedicated UM-4 branch, extend `test/users-management.http.spec.ts` to simulate `auth_record_admin_audit_event` returning a database error. Cover both current-admin denial and recent-MFA denial through the actual NestJS HTTP pipeline.
 - **Current behavior:** `AdminAuditService.record()` maps RPC errors, thrown errors, and empty/non-string IDs to a generic `503 Service Unavailable`; `AdminGuard` and `RecentMfaGuard` do not proceed to lifecycle mutation after audit persistence fails.
 - **Desired behavior:** Authorization denials remain fail-closed when audit storage is unavailable; raw database error details do not reach the HTTP response; no role/status/session mutation RPC runs.
-- **Acceptance criteria:** [x] Exercise both denial paths over HTTP; [x] assert 503 and generic error text; [x] assert synthetic DB error detail is redacted; [x] assert audit RPC is the only RPC and lifecycle mutation is not invoked; [ ] pass Auth Service CI on the final PR head; [ ] retain live integration as blocked until runtime/project binding is verified.
+- **Acceptance criteria:** [x] Exercise both denial paths over HTTP; [x] assert 503 and generic error text; [x] assert synthetic DB error detail is redacted; [x] assert audit RPC is the only RPC and lifecycle mutation is not invoked; [x] Auth Service CI passed on test/evidence head `3ba7cbbd4deb2f23e05233f417fd00d367de7064` in [run #40405726312](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40405726312); [ ] pass CI on the queue/roadmap-only follow-up head; [ ] retain live integration as blocked until runtime/project binding is verified.
 - **Validation:** Synthetic test data and mocked Supabase client only. No account rows or credential material read; no schema, data, migration, grant, branch, function or deployment operation.
 - **Dependencies:** Existing UM-1 authorization/audit foundation; UM-4 exact-head CI. Live integration remains blocked by AUTH-OPS-007.
 - **Risk:** Low for this test-only slice; it strengthens the fail-closed contract without changing runtime behavior.
