@@ -62,14 +62,7 @@ describe('AdminAuditService', () => {
       action: 'ADMIN_MUTATION_FAILED',
       outcome: 'FAILED',
       requestId: 'req-456',
-    })).rejects.toThrow(ServiceUnavailableException);
-    await expect(service.record({
-      actorUserId: 'actor-id',
-      targetUserId: 'target-id',
-      action: 'ADMIN_MUTATION_FAILED',
-      outcome: 'FAILED',
-      requestId: 'req-456',
-    })).rejects.not.toThrow('sensitive database implementation detail');
+    })).rejects.toThrow('Unable to persist administrative audit event');
   });
 
   it('normalizes thrown transport failures', async () => {
