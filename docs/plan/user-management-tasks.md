@@ -241,17 +241,19 @@
 
 ### AUTH-UM-003B — Reset directory loading/error state for each request
 
-- **Priority/status:** P2 / OPEN — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) on `fix/auth-admin-directory-loading-state-verified`; exact-head checks pending.
-- **Current behavior:** Changing role or page starts a new admin-directory request but does not set the loading state or clear a prior error. A successful subsequent request can leave a stale error visible, and users receive no loading indication for filter/page changes.
-- **Desired behavior:** Loading and error are derived from the current request key. Query/filter/page changes immediately show loading and hide stale errors; cancelled requests must not overwrite newer state.
+- **Priority/status:** P2 / MERGED — [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40) squash-merged at `61adb64a71128b8eac2f5ba2ea28181025af6ac1` from exact tested head `fc29ba65bf1c8c9486fa8b1d4122bb1a7231ba38`; PR #39 was closed as superseded.
+- **Evidence:** `web/src/app/admin/users/page.tsx`, web request-state regression tests, [PR #40](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/40).
+- **Current behavior:** Request loading/error state is keyed to auth token, role, search, filter and page. A new key suppresses stale errors and shows loading; obsolete cancelled requests cannot overwrite the active result.
+- **Desired behavior:** Preserve request-key-derived loading/error state, cancellation, read-only API behavior and the NestJS-only data-access boundary.
 - **Acceptance criteria:**
-  - Derive loading/error from the current request key without synchronous state updates inside effects.
-  - Preserve request cancellation and the read-only NestJS-only API contract.
-  - Add regression coverage for keyed success/error state and stale-state suppression.
-  - Keep the directory response allowlist, explicit TypeScript aliases, and no-mutation UI unchanged.
-- **Validation:** Auth-web CI must pass tests, typecheck, lint, build and container build on the exact PR head; auth-service CI must also pass tests, typecheck, build and container build.
-- **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration, or account-mutation dependency.
-- **Risk:** Low — UI state transition only. No auth/data-access contract changes.
+  - [x] New request keys immediately derive loading state and suppress stale errors.
+  - [x] Only success/error results for the active request key are visible.
+  - [x] Cancelled requests do not update state.
+  - [x] Keep the API read-only and NestJS-only; no browser Supabase access or mutation controls.
+  - [x] Add dependency-free regression coverage.
+- **Validation:** Exact-head auth-web CI [#40222012490](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012490) passed tests, typecheck, lint, build and frontend container build. Exact-head auth-service CI [#40222012483](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40222012483) passed tests, typecheck, build and service container build. Supabase Preview was skipped because the branch was not associated with a Supabase Branch; no migration/schema file changed.
+- **Dependencies:** Existing read-only UM-3 UI; no schema, audit, migration or account-mutation dependency.
+- **Risk:** Low — UI request-state behavior only; no JWT, session, authorization or API contract changes.
 - **Safety:** No direct browser-to-Supabase access, mutation endpoints, schema changes, production release, or live account mutation.
 
 ### AUTH-UM-003C — Browser-level admin dialog focus and responsive contract
