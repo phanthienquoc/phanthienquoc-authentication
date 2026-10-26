@@ -199,18 +199,18 @@
 - **Risk:** High — authorization or response-shaping defects could expose account/security data.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
-### AUTH-UM-001C — Controller authorization and read-only route contract
+### AUTH-UM-001C — Controller authorization and route-method contract (extended by UM-2B)
 
 - **Priority/status:** P1 / MERGED — [PR #42](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/42) squash-merged at `998b73b2fc01795291c00ea3ee0d80d396c5b61d` from exact tested head `d0ddafc5373fb62897c5220f75091f116a3a6324`.
-- **Current behavior:** `UsersManagementController` declares `@UseGuards(AdminGuard)` at controller level and exposes read-only list/detail handlers.
-- **Desired behavior:** Every current admin-directory route stays protected by `AdminGuard`; every route remains GET-only until the authorization and privileged-audit prerequisites for mutations are complete.
+- **Current behavior:** `UsersManagementController` declares `@UseGuards(AdminGuard)` at controller level. The original list/detail handlers are GET-only; merged PR #64 added protected PATCH role/status and POST session-revocation handlers. Current controller tests allow only GET/PATCH/POST, and require recent MFA for each privileged lifecycle route but not the read-only directory routes.
+- **Desired behavior:** Every route remains protected by `AdminGuard`; only the explicitly supported GET/PATCH/POST routes are allowed, lifecycle mutations require recent MFA and audit, and DELETE/public bootstrap/Keycloak mutation remain absent.
 - **Acceptance criteria:**
   - Assert controller-level guard metadata includes `AdminGuard`.
   - Assert the existing `list` and `getById` handlers are registered routes.
-  - Assert every registered route handler uses `RequestMethod.GET`; any future POST/PUT/PATCH/DELETE route fails this contract test until deliberately updated with the required security/audit coverage.
+  - Assert registered route methods stay within the explicit GET/PATCH/POST allowlist; lifecycle mutation handlers must require recent MFA and audit. DELETE, PUT, public bootstrap and unapproved Keycloak mutations remain disallowed.
   - Keep legacy NestJS user routes separate from Keycloak identity rows.
 - **Validation:** Auth-service CI [run #40227589102](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40227589102) passed dependency installation, tests, typecheck, build and container build on exact head `d0ddafc5373fb62897c5220f75091f116a3a6324`. Lint is not part of this workflow; no `web/**` files or migrations changed. Default branch verified at merge SHA `998b73b2fc01795291c00ea3ee0d80d396c5b61d`.
-- **Dependencies:** Complements AUTH-UM-001A; does not unblock AUTH-UM-001B audit persistence or UM-2 lifecycle mutations.
+- **Dependencies:** Complements AUTH-UM-001A. UM-1B audit persistence and UM-2 lifecycle mutations are merged; remaining acceptance is live integration under AUTH-UM-004.
 - **Risk:** Low — test-only metadata assertions.
 - **Links:** [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
 
@@ -218,8 +218,8 @@
 
 - **Priority/status:** P1 / MERGED — PR #54 merged at `533fd4f6809c187759231d109fe7ac05239271c9` from exact head `e74500d2609364fcf30fb3c2ad598b3ab4613d55`.
 - **Evidence:** Live ledger versions `20261026035340 auth_admin_audit_events` and `20261026035431 auth_admin_audit_rpc_only_access`; post-apply `list_migrations`, `to_regclass`, `to_regprocedure`, `pg_proc` ACL and `has_table_privilege` checks. `auth_record_admin_audit_event` is `SECURITY DEFINER` with fixed `search_path=pg_catalog, public, pg_temp`; EXECUTE is limited to `service_role` and owner `postgres`.
-- **Current behavior:** The server-side append path and typed writer are merged. The table is RLS-enabled with no policies and no direct privileges for `anon`, `authenticated`, or `service_role`; the validated RPC is the application write path. User Management routes remain GET-only.
-- **Desired behavior:** Append-only audit events for eventual successful/denied/failed legacy-admin operations, with safe allowlisted metadata and no secrets. Keep Keycloak identities separate.
+- **Current behavior:** The server-side append path and typed writer are merged. The table is RLS-enabled with no policies and no direct privileges for `anon`, `authenticated`, or `service_role`; the validated RPC is the application write path. Routes were GET-only at this PR #54 checkpoint; PR #64 later added protected lifecycle methods that write audit events atomically through the same SQL transaction.
+- **Desired behavior:** Append-only audit events for current successful/denied/failed legacy-admin lifecycle operations, with safe allowlisted metadata and no secrets. Keep Keycloak identities separate.
 - **Acceptance criteria:**
   - [x] Create a constrained audit table with safe role/status fields and chronology indexes.
   - [x] Expose validated writes through a SECURITY DEFINER RPC with fixed search_path and service_role-only EXECUTE.
@@ -228,7 +228,8 @@
   - [x] Unit tests verify secret-like extra fields are not forwarded and RPC/transport errors are normalized.
   - [x] Exact-head service CI and post-merge service CI passed.
   - [ ] Add non-production end-to-end integration coverage for audit success/failure and consistency with eventual mutations.
-  - [ ] Prove audit writes are atomic with each eventual mutation before creating mutation routes.
+  - [x] Lifecycle migration calls the audit RPC inside the same SQL transaction as each role/status/session mutation.
+  - [ ] Verify audit/mutation atomicity with synthetic fixtures on an explicitly authorized safe non-production target.
 - **Validation:** Exact-head CI [#40266935252](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40266935252) and post-merge CI [#40267173209](https://github.com/phanthienquoc/phanthienquoc-authentication/actions/runs/40267173209) passed. Supabase Preview was skipped because no branch was associated and preview-branch creation is disabled; this is not non-production integration evidence. No account rows were read or changed by this run.
 - **Dependencies:** AUTH-OPS-002 migration-history reconciliation; AUTH-UM-002 is merged. End-to-end audit/mutation consistency and gateway behavior remain part of AUTH-UM-004.
 - **Risk:** High — audit records must not be forgeable or contain secrets. The application role cannot write/read the table directly and has only EXECUTE on the validated RPC.
@@ -259,7 +260,7 @@
 - **Priority/status:** P2 / IMPLEMENTED; INTEGRATION ACCEPTANCE OPEN — the read-only directory, API contract tests and browser-level dialog/focus/responsive checks are merged (PR #47); confirmation-based role/status/session-revocation UI was added by merged PR #64. Live integration acceptance remains under AUTH-UM-004.
 - **Evidence:** `web/src/app/admin/users/page.tsx`, `web/src/services/auth-api.ts`, `web/src/features/auth/auth-store.ts`, `web/scripts/admin-user-query.mjs`, `web/scripts/admin-user-query.test.mjs`, `web/scripts/admin-user-contract.test.mjs`.
 - **Current behavior:** PR #19 provided the `/admin/users` directory with search, role filter, pagination and detail panel. PR #24 added dependency-free query/security contracts; PR #47 added browser accessibility checks; PR #64 added confirmation-based lifecycle controls backed by protected NestJS endpoints. All browser data access remains through NestJS; no direct browser-to-Supabase query is used.
-- **Desired behavior:** A responsive, accessible admin workflow for supported account lifecycle actions after the API and audit gates exist.
+- **Desired behavior:** Maintain a responsive, accessible admin workflow for supported lifecycle actions; server-side authorization is authoritative and Keycloak mutation remains disabled.
 - **Acceptance criteria:**
   - No direct browser-to-Supabase access or sensitive fields in the UI.
   - Loading/empty/error states, keyboard-accessible confirmation dialogs and clear provider labels.
