@@ -32,7 +32,7 @@ async function createHarness(options: HarnessOptions = {}) {
     }),
   };
   const from = jest.fn().mockReturnValue(userQuery);
-  const rpc = jest.fn(async (name: string, _args: Record<string, unknown>) => {
+  const rpc = jest.fn(async (name: string) => {
     if (name === 'auth_admin_update_user_status') {
       return {
         data: {
@@ -101,7 +101,6 @@ async function createHarness(options: HarnessOptions = {}) {
     url: `http://127.0.0.1:${address.port}`,
     from,
     rpc,
-    // Expose the query builder only through the mocked Supabase client.
   };
 }
 
