@@ -139,4 +139,19 @@ describe('server-issued MFA challenge completion', () => {
     expect(repository.consumeMfaLoginChallenge).toHaveBeenCalledTimes(1);
     expect(auth.completeMfaLogin).not.toHaveBeenCalled();
   });
+
+  it('fails closed if the atomic consume result belongs to a different account', async () => {
+    const { controller, repository, response, auth } = makeController({ consumedUserId: 'user-2' });
+
+    await expect(controller.mfaLogin(
+      { challengeToken, code: '123456', userId: 'user-2' } as any,
+      undefined,
+      undefined,
+      response,
+    )).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(repository.findMfaLoginChallengeUserId).toHaveBeenCalledWith('hash:'.concat(challengeToken));
+    expect(repository.findById).toHaveBeenCalledWith(user.id);
+    expect(auth.completeMfaLogin).not.toHaveBeenCalled();
+  });
 });
