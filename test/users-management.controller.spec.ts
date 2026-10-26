@@ -94,7 +94,7 @@ describe('UsersManagementController route security contract', () => {
     }
     for (const method of ['list', 'getById']) {
       const handler = Object.getOwnPropertyDescriptor(prototype, method)?.value;
-      expect(Reflect.getMetadata(GUARDS_METADATA, handler) as Function[] | undefined).not.toContain(RecentMfaGuard);
+      expect((Reflect.getMetadata(GUARDS_METADATA, handler) as Function[] | undefined) ?? []).not.toContain(RecentMfaGuard);
     }
   });
 
