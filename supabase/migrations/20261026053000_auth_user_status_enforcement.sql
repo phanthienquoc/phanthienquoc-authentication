@@ -55,7 +55,7 @@ begin
   insert into public.refresh_sessions (
     id, user_id, family_id, token_hash, expires_at, ip, user_agent
   ) values (
-    p_session_id, p_user_id, p_family_id, p_token_hash, p_expires_at, p_ip, p_user_agent
+    p_session_id, p_user_id, p_family_id, p_token_hash, p_expires_at, nullif(p_ip, '')::inet, p_user_agent
   );
 
   return true;
