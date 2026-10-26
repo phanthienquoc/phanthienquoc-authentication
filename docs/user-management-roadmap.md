@@ -292,3 +292,8 @@ A read-only comparison of the live 78-entry Supabase ledger against current `mas
 ## PostgREST bounded follow-up — 2026-10-26 20:50 +07:00
 
 The read-only log window `2026-10-26 13:30:00Z–13:50:00Z` returned 17 PostgREST timeout-manager events on path `/`, latest `13:49:07.102820Z`, and no matching migration-error events. The earlier 12:30–13:30 UTC window had 44 timeout events and two migration errors. The five-minute successful OpenAPI metadata cache remains on master but undeployed; root-cause resolution is not established.
+
+
+## UM-4 response/audit allowlist follow-up — 2026-10-26 20:55 +07:00
+
+A second atomic synthetic-fixture database-RPC run verified that role/status responses and audit-event JSON do not expose password hashes, encrypted MFA secrets, token hashes, recovery-code, passkey or credential fields. The run required audit events, cleaned its synthetic fixtures, and a subsequent read-only query returned zero matching users, sessions and audit events. Application HTTP response, cookie, MFA/recovery and passkey integration remain open.
