@@ -18,6 +18,25 @@
 
 ## Active tasks
 
+### AUTH-SEC-003 — Revoke direct browser-role grants on legacy auth tables
+
+- **Priority/status:** P0 / PR OPEN — migration source prepared from verified live ACL evidence; DO NOT MERGE until the Supabase GitHub App target is verified non-production and safe.
+- **Evidence:** Connected Supabase project `gtqovpusfyyvxpeezxlo`; read-only `pg_class.relacl` and `has_table_privilege` inspection on 2026-10-26. Effective `anon` and `authenticated` SELECT/INSERT/UPDATE/DELETE privileges are true for `public.users`, `public.refresh_sessions`, `public.mfa_recovery_codes`, `public.auth_passkey_challenges`, and `public.auth_passkey_credentials`. Their ACLs explicitly include both browser roles. `public.auth_keycloak_identities` is already restricted to `postgres`/`service_role` and is intentionally excluded.
+- **Current behavior:** RLS is enabled on all six inspected auth tables, but no RLS policies exist. Five tables still grant direct privileges to `anon` and `authenticated`; RLS does not govern table-level privileges such as TRUNCATE, REFERENCES, and TRIGGER. The web UI must not query Supabase directly, and backend code uses the shared `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` client.
+- **Desired behavior:** Browser roles have no direct table privileges on legacy users, refresh sessions, MFA recovery codes, or passkey persistence; existing server-side service-role behavior is preserved.
+- **Change:** `supabase/migrations/20261026000100_revoke_browser_auth_table_grants.sql` revokes all table privileges from `anon` and `authenticated` on only those five verified tables. It does not grant privileges, modify data, change RLS policies, alter service-role grants, or touch Keycloak identity data.
+- **Acceptance criteria:**
+  - [x] Each target table and current ACL was verified read-only against the connected catalog.
+  - [x] Migration is narrowly scoped and idempotent; no guessed columns or row mutations.
+  - [ ] Approved non-production target and migration provenance are verified before merge/application.
+  - [ ] In the approved non-production target, confirm effective browser-role table privileges are false for all five tables and service-role access remains true.
+  - [ ] Run auth-service tests/typecheck/build and inspect all required PR checks on exact HEAD.
+- **Validation:** Read-only SQL confirmed `relacl`, effective privileges and RLS/policy state. No migration was applied; no account rows were read. Repository CI does not prove SQL was applied successfully. No database integration test is claimed.
+- **Dependencies:** AUTH-UM-000 migration provenance; an approved, healthy non-production Supabase project; verification/gating of the Supabase GitHub App's merge-time target.
+- **Risk:** High if grants remain broader than the server-only architecture; medium during remediation if applied to the wrong target. Keep this migration-bearing PR open until the environment gate is satisfied.
+- **Source/docs:** [Supabase — Securing your API](https://supabase.com/docs/guides/api/securing-your-api); [roadmap](../user-management-roadmap.md); [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).
+
+
 ### AUTH-OPS-001 — Prevent unauthorized release promotion from master pushes
 
 - **Priority/status:** P0 / DONE — ordinary pushes no longer publish or promote images.
