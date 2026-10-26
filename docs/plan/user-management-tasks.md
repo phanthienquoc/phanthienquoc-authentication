@@ -160,9 +160,9 @@
 
 ### AUTH-UM-002 — Legacy account lifecycle API (UM-2)
 
-- **Priority/status:** P1 / BLOCKED — read-only list/detail and the audit writer are merged, but lifecycle mutations remain blocked by the missing status schema, unclassified Supabase environment, and absent mutation authorization/concurrency/atomic-audit tests.
+- **Priority/status:** P1 / IN PROGRESS — UM-2A status schema and suspension enforcement are prepared on branch [feat/auth-um-2-suspension-enforcement-20261026](https://github.com/phanthienquoc/phanthienquoc-authentication/tree/feat/auth-um-2-suspension-enforcement-20261026). Full lifecycle mutations remain BLOCKED by unclassified Supabase target/migration drift and missing mutation authorization/concurrency/atomic-audit tests.
 - **Evidence:** `src/users/users-management.controller.ts`, `src/users/users-management.service.ts`, `src/auth/auth.repository.ts`, `src/auth/auth.service.ts`, `src/auth/mfa.service.ts`, `src/auth/passkey.service.ts`, live `public.users` catalog and PR #54 audit persistence.
-- **Current behavior:** `public.users` has `id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,created_at,updated_at`; no status/suspension column exists. Login, refresh, MFA and passkey paths therefore have no status gate. Session revocation currently targets an individual refresh token/session, not all active sessions for a user. No role/status/session mutation endpoint exists.
+- **Current live behavior:** `public.users` has `id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,created_at,updated_at`; no status/suspension column exists. Login, refresh, MFA and passkey paths therefore have no live status gate. The branch adds an additive `status` migration and code gates but does not apply it. Session revocation still targets an individual refresh token/session; no role/status/session mutation endpoint is added.
 - **Desired behavior:** Audited role change within policy, reversible suspension/reactivation, and revoke-all-sessions for legacy NestJS accounts only.
 - **Acceptance criteria:**
   - Every mutation is protected by current database-backed admin authorization and an audit record.
@@ -171,7 +171,7 @@
   - Never hard-delete by default; Keycloak identities remain separate and read-only.
   - Do not add mutation routes until schema, audit persistence and authorization/concurrency tests pass.
   - [x] Keep mutation routes absent while these gates remain unmet.
-- **Validation:** No mutation endpoint was added and no account rows were read/changed in this run. Unit and approved non-production integration tests are still required for allowed/denied transitions, concurrent last-admin protection, session-family revocation, audit failures and secret redaction.
+- **Validation:** No mutation endpoint was added, no account rows were read/changed, and no migration was applied. Branch unit/typecheck/build validation is pending. The migration-bearing change must not merge until the target is explicitly confirmed safe non-production and migration-history drift is reconciled. Full UM-2 still requires tests for allowed/denied transitions, concurrent last-admin protection, atomic session-family revocation, audit failures and secret redaction.
 - **Dependencies:** AUTH-UM-000, AUTH-UM-001A, AUTH-UM-001B, AUTH-SEC-001, and safe release workflow handling under AUTH-OPS-001; explicit non-production target confirmation.
 - **Risk:** Critical — unsafe mutations can lock out administrators or leave compromised sessions active.
 - **Links:** [PR #18](https://github.com/phanthienquoc/phanthienquoc-authentication/pull/18), [Roadmap](../user-management-roadmap.md), [Issue #16](https://github.com/phanthienquoc/phanthienquoc-authentication/issues/16).

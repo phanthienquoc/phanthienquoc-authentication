@@ -33,6 +33,8 @@ describe('AuthRepository.ready RPC contract', () => {
 
     await expect(repository.ready()).resolves.toBeUndefined();
     expect(supabase.db.from).toHaveBeenCalledTimes(5);
+    expect(query.select).toHaveBeenNthCalledWith(1, 'id,status');
+    expect(query.select).toHaveBeenNthCalledWith(2, 'id');
     expect(supabase.getRestSchemaPaths).toHaveBeenCalledTimes(1);
   });
 

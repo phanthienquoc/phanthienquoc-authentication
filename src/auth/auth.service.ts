@@ -51,6 +51,7 @@ export class AuthService {
     if (!user || !(await this.passwords.verify(input.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    if (user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     if (user.mfaEnabled) return this.beginMfaLogin(user);
     return this.issueLoginForUser(user, context);
   }
@@ -58,6 +59,7 @@ export class AuthService {
   async issueLoginForUser(user: AuthUser, context: {
     userAgent?: string; ip?: string; response?: Response;
   }) {
+    if (user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     const refreshToken = randomBytes(48).toString('base64url');
     await this.repository.createRefreshSession({
       sessionId: randomUUID(),
@@ -77,7 +79,7 @@ export class AuthService {
 
   async me(userId: string) {
     const user = await this.repository.findById(userId);
-    if (!user) throw new UnauthorizedException('User not found');
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('User not found');
     return { user: this.publicUser(user) };
   }
 
@@ -100,6 +102,9 @@ export class AuthService {
         this.clearRefreshCookie(context.response);
         throw new UnauthorizedException('Refresh token reuse detected');
       }
+      if (result.user.status !== 'ACTIVE') {
+        throw new UnauthorizedException('Refresh session invalid or expired');
+      }
       this.setRefreshCookie(context.response, nextToken);
       return { accessToken: this.jwt.issue(result.user.id, result.user.role) };
     } catch (error) {
@@ -121,6 +126,7 @@ export class AuthService {
   }
 
   async beginMfaLogin(user: AuthUser) {
+    if (user.status !== 'ACTIVE') throw new UnauthorizedException('Invalid credentials');
     if (!user.mfaEnabled || !user.mfaSecretEncrypted) {
       throw new UnauthorizedException('MFA is not enabled for this account');
     }

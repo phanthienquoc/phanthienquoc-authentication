@@ -13,6 +13,7 @@ const legacyUser: AuthUser = {
   email: 'person@example.com',
   passwordHash: 'password-hash',
   role: 'USER',
+  status: 'ACTIVE',
   mfaEnabled: false,
   mfaSecretEncrypted: null,
 };
@@ -102,6 +103,30 @@ describe('Authentication flow security contracts', () => {
       { response },
     )).rejects.toBeInstanceOf(UnauthorizedException);
 
+    expect(repository.createRefreshSession).not.toHaveBeenCalled();
+    expect(jwt.issue).not.toHaveBeenCalled();
+    expect(cookie).not.toHaveBeenCalled();
+  });
+
+  it('rejects suspended accounts before MFA challenge or session creation', async () => {
+    const suspendedUser = {
+      ...legacyUser,
+      status: 'SUSPENDED' as const,
+      mfaEnabled: true,
+      mfaSecretEncrypted: 'encrypted-secret',
+    };
+    const { service, repository, passwords, jwt } = makeAuthService(suspendedUser);
+    const { response, cookie } = makeResponse();
+
+    await expect(service.login(
+      { email: suspendedUser.email, password: 'correct-password' } as LoginDto,
+      { response },
+    )).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.beginMfaLogin(suspendedUser)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.issueLoginForUser(suspendedUser, { response })).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(passwords.verify).toHaveBeenCalled();
+    expect(repository.createMfaLoginChallenge).not.toHaveBeenCalled();
     expect(repository.createRefreshSession).not.toHaveBeenCalled();
     expect(jwt.issue).not.toHaveBeenCalled();
     expect(cookie).not.toHaveBeenCalled();

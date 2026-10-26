@@ -11,9 +11,13 @@ function contextFor(authorization?: string): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function createGuard(role: string | null, error: unknown = null) {
+function createGuard(
+  role: string | null,
+  error: unknown = null,
+  status: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE',
+) {
   const maybeSingle = jest.fn().mockResolvedValue({
-    data: role ? { id: 'admin-user-id', role } : null,
+    data: role ? { id: 'admin-user-id', role, status } : null,
     error,
   });
   const query = {
@@ -43,6 +47,11 @@ describe('AdminGuard', () => {
   it('allows a caller whose current database role is ADMIN', async () => {
     const { guard } = createGuard('ADMIN');
     await expect(guard.canActivate(contextFor('Bearer signed-token'))).resolves.toBe(true);
+  });
+
+  it('rejects a suspended database administrator even when the token role is ADMIN', async () => {
+    const { guard } = createGuard('ADMIN', null, 'SUSPENDED');
+    await expect(guard.canActivate(contextFor('Bearer signed-token'))).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rejects a token whose subject no longer exists', async () => {

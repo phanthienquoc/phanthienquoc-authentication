@@ -3,6 +3,7 @@ import { SupabaseClientService } from '../db/supabase.client';
 
 export interface AuthUser {
   id: string; email: string; passwordHash: string; role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'SUSPENDED';
   mfaEnabled: boolean; mfaSecretEncrypted: string | null;
 }
 export interface RefreshSession {
@@ -11,6 +12,7 @@ export interface RefreshSession {
 }
 type UserRow = {
   id: string; email: string; password_hash: string; role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'SUSPENDED';
   mfa_enabled: boolean; mfa_secret_encrypted: string | null;
 };
 
@@ -18,10 +20,11 @@ type RefreshUserRow = {
   id: string;
   email: string;
   role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'SUSPENDED';
   mfa_enabled: boolean;
 };
 
-type RefreshAuthUser = Pick<AuthUser, 'id' | 'email' | 'role' | 'mfaEnabled'>;
+type RefreshAuthUser = Pick<AuthUser, 'id' | 'email' | 'role' | 'status' | 'mfaEnabled'>;
 
 @Injectable()
 export class AuthRepository {
@@ -35,7 +38,8 @@ export class AuthRepository {
       'auth_passkey_challenges',
       'auth_passkey_credentials',
     ]) {
-      const { error } = await this.supabase.db.from(table).select('id').limit(1);
+      const columns = table === 'users' ? 'id,status' : 'id';
+      const { error } = await this.supabase.db.from(table).select(columns).limit(1);
       if (error) this.persistenceError();
     }
 
@@ -64,7 +68,7 @@ export class AuthRepository {
 
   async findByEmail(email: string): Promise<AuthUser | null> {
     const { data, error } = await this.supabase.db.from('users')
-      .select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted')
+      .select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,status')
       .eq('email', email.trim().toLowerCase()).limit(1).maybeSingle<UserRow>();
     if (error) this.persistenceError();
     return this.mapUser(data ?? undefined);
@@ -72,7 +76,7 @@ export class AuthRepository {
 
   async findById(id: string): Promise<AuthUser | null> {
     const { data, error } = await this.supabase.db.from('users')
-      .select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted')
+      .select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,status')
       .eq('id', id).maybeSingle<UserRow>();
     if (error) this.persistenceError();
     return this.mapUser(data ?? undefined);
@@ -82,7 +86,7 @@ export class AuthRepository {
     const { data, error } = await this.supabase.db.from('users').insert({
       email: input.email.trim().toLowerCase(), password_hash: input.passwordHash,
       role: input.role, mfa_enabled: false,
-    }).select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted').single<UserRow>();
+    }).select('id,email,password_hash,role,mfa_enabled,mfa_secret_encrypted,status').single<UserRow>();
     if (error) {
       if (error.code === '23505') {
         const duplicate = new Error('Duplicate email') as Error & { code: string };
@@ -201,6 +205,9 @@ export class AuthRepository {
       | { status: 'invalid' } | null;
     if (!result || result.status === 'invalid') throw new UnauthorizedException('Refresh session invalid or expired');
     if (result.status === 'reuse-detected') return { status: 'reuse-detected', familyId: result.family_id };
+    if (result.user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Refresh session invalid or expired');
+    }
     return {
       status: 'rotated',
       familyId: result.family_id,
@@ -208,6 +215,7 @@ export class AuthRepository {
         id: result.user.id,
         email: result.user.email,
         role: result.user.role,
+        status: result.user.status,
         mfaEnabled: result.user.mfa_enabled,
       },
     };
@@ -236,6 +244,7 @@ export class AuthRepository {
   private mapUser(row?: UserRow): AuthUser | null {
     return row ? {
       id: row.id, email: row.email, passwordHash: row.password_hash, role: row.role,
+      status: row.status,
       mfaEnabled: row.mfa_enabled, mfaSecretEncrypted: row.mfa_secret_encrypted,
     } : null;
   }
