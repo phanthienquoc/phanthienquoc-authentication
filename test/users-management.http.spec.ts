@@ -15,6 +15,7 @@ type HarnessOptions = {
   status?: 'ACTIVE' | 'SUSPENDED';
   mfaEnabled?: boolean;
   mfaVerifiedAt?: number;
+  auditFails?: boolean;
 };
 
 async function createHarness(options: HarnessOptions = {}) {
@@ -110,6 +111,9 @@ async function createHarness(options: HarnessOptions = {}) {
       };
     }
     if (name === 'auth_record_admin_audit_event') {
+      if (options.auditFails) {
+        return { data: null, error: { message: 'synthetic audit persistence failure' } };
+      }
       return { data: 'audit-event-id', error: null };
     }
     return { data: null, error: { message: 'Unexpected RPC in HTTP contract test' } };
@@ -326,6 +330,52 @@ describe('Admin user lifecycle HTTP contract', () => {
         p_reason_code: 'POLICY_VIOLATION',
         p_request_id: REQUEST_ID,
       });
+      expect(harness.rpc.mock.calls.some(([name]) => name === 'auth_admin_update_user_status')).toBe(false);
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('fails closed when audit persistence fails during administrator authorization denial', async () => {
+    const harness = await createHarness({ role: 'USER', auditFails: true });
+    try {
+      const response = await patchStatus(harness.url, {
+        Authorization: 'Bearer synthetic-test-token',
+        'X-Request-Id': REQUEST_ID,
+      });
+      expect(response.status).toBe(503);
+      const payload = await response.json();
+      expect(payload.message).toBe('Unable to persist administrative audit event');
+      expect(JSON.stringify(payload)).not.toContain('synthetic audit persistence failure');
+      expect(harness.rpc).toHaveBeenCalledTimes(1);
+      expect(harness.rpc).toHaveBeenCalledWith('auth_record_admin_audit_event', expect.objectContaining({
+        p_action: 'ADMIN_ACCESS_DENIED',
+        p_outcome: 'DENIED',
+        p_request_id: REQUEST_ID,
+      }));
+      expect(harness.rpc.mock.calls.some(([name]) => name === 'auth_admin_update_user_status')).toBe(false);
+    } finally {
+      await harness.app.close();
+    }
+  });
+
+  it('fails closed when recent-MFA denial cannot be audited', async () => {
+    const harness = await createHarness({ mfaEnabled: false, auditFails: true });
+    try {
+      const response = await patchStatus(harness.url, {
+        Authorization: 'Bearer synthetic-test-token',
+        'X-Request-Id': REQUEST_ID,
+      });
+      expect(response.status).toBe(503);
+      const payload = await response.json();
+      expect(payload.message).toBe('Unable to persist administrative audit event');
+      expect(JSON.stringify(payload)).not.toContain('synthetic audit persistence failure');
+      expect(harness.rpc).toHaveBeenCalledTimes(1);
+      expect(harness.rpc).toHaveBeenCalledWith('auth_record_admin_audit_event', expect.objectContaining({
+        p_action: 'ADMIN_ACCESS_DENIED',
+        p_outcome: 'DENIED',
+        p_request_id: REQUEST_ID,
+      }));
       expect(harness.rpc.mock.calls.some(([name]) => name === 'auth_admin_update_user_status')).toBe(false);
     } finally {
       await harness.app.close();
