@@ -15,14 +15,14 @@
 
 1. Supabase project API reports `ACTIVE_HEALTHY`, PostgreSQL `17.6.1.084`.
 2. The default Supabase branch is non-persistent and reports `MIGRATIONS_FAILED`; GitHub integration UI previously showed deployment-to-production enabled on Git branch `master`. Therefore, a push/merge to the linked branch may trigger deployment/migration activity and must not be treated as documentation-only side-effect-free without checking the binding.
-3. The remote migration ledger contains migration versions with no corresponding source file in the authorized repository/repositories, and repository source contains versions absent from the remote ledger. The earlier inventory reported 65 ledger versions without source, 32 source version prefixes absent from the ledger, 13 exact matches, and duplicate local prefixes `202609070001`, `202609140001`, `202609160002`, `202609160003`. Recompute these counts against current default branch and current ledger before making remediation decisions.
+3. The remote migration ledger still contains versions with no corresponding source file in the standard `supabase/migrations/` path checked in either authorized repository. The earlier inventory reported 65 ledger versions without source, 32 source version prefixes absent from the ledger, 13 exact matches, and duplicate local prefixes `202609070001`, `202609140001`, `202609160002`, `202609160003`; these counts have not yet been fully recomputed against all current source paths. Direct checks on 2026-10-27 returned 404 for the standard-path files corresponding to remote versions `20261014024759`, `20261014130516`, `20261014131151`, and `20261020234922` in both authorized repositories. This establishes absence at those exact paths, not absence from all Git history or alternate paths.
 4. Specific examples of remote-only ledger versions include:
    - `20261014024759` — `restrict_auth_rpc_execution`
    - `20261014130516` — `keycloak_runtime_schema`
    - `20261014131151` — `keycloak_runtime_login_role`
    A local-only source example is `20261012000000_auth_persistence_rpcs.sql`. Keycloak persistence source/remote versions also differ (`20261020234922` is present remotely).
-5. A reconciliation migration `20261027040648_auth_persistence_rpc_status_reconciliation` was applied directly to the remote project on 2026-10-27 and appears in the ledger. It updates four Auth RPC definitions/privileges. The source migration file has not yet been independently confirmed present on the GitHub default branch. This creates a source-of-truth gap that must be reconciled before relying on GitHub-driven deployments.
-6. The branch state `MIGRATIONS_FAILED` alone does not prove that every listed historical migration failed or identify which exact statement failed. Available evidence does not yet isolate a single root cause for the status.
+5. Reconciliation migration `20261027040648_auth_persistence_rpc_status_reconciliation` was applied directly to the remote project on 2026-10-27 and appears in the ledger. Its source file was restored through Auth PR #77 and the associated Auth Service CI passed. This repaired that migration's source record only; it did not resolve all historical source/ledger drift.
+6. Latest observed workflow logs at `2026-10-27T05:12:35.142464Z` (UTC) show `ERROR Remote migration versions not found in local migrations directory.` The workflow had cloned Git ref `master`, read project ref `gtqovpusfyyvxpeezxlo`, and connected to the database immediately before the error. This is a source/ledger version-set mismatch; it does not identify a failed SQL statement. The reconciliation source restoration in PR #77 did not clear this error. The exact full set of missing source versions and their authoritative origins is still unresolved.
 
 ## Likely causes (hypotheses; verify before changing anything)
 
@@ -38,7 +38,7 @@
 - Keep the issue non-blocking for unrelated implementation work, as requested.
 - Do not merge migration-bearing PRs into the connected branch until the deployment binding and side effects are known.
 - Do not dispatch release/deploy workflows or mutate Supabase branch state to force green.
-- Capture the exact branch status, migration ledger, current repository refs and GitHub/Supabase deployment history with timestamps.
+- Capture the exact branch status, migration ledger, current repository refs and GitHub/Supabase deployment history with timestamps. Latest confirmed ledger entry is `20261027040648`; the latest workflow error remains the missing-local-migration-versions error above.
 
 ### Phase 1 — Build a provenance matrix
 For every remote ledger version and every source migration file, record:
@@ -89,4 +89,4 @@ Classify each row as: exact match, remote-only with recoverable source, local-on
 
 ## Current disposition
 
-**Deferred bug, investigation documented.** No further Supabase schema/branch changes are authorized by this plan. Resume at Phase 1 when remediation is scheduled; use fresh evidence rather than assuming the earlier mismatch counts remain current.
+**Investigation in progress; migration drift remains unresolved.** PR #77 restored the source for `20261027040648`, but the latest Supabase workflow still fails because remote migration versions are absent from the connected repository's local migration directory. Current checks confirm several example remote versions are absent at the standard migration paths in both allowed repos, but do not yet prove their origin in Git history. Continue Phase 1 with a complete version/path inventory and preserve the no-ledger-edit/no-blind-replay guardrails. No further Supabase schema/branch changes are made by this documentation update.
