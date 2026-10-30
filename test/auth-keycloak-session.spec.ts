@@ -26,6 +26,23 @@ describe('AuthService Keycloak session exchange', () => {
       .rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('rejects a suspended account before exchanging a verified Keycloak identity', async () => {
+    repository.findByEmail.mockResolvedValue({
+      id: 'user-1',
+      email: 'trader@example.com',
+      role: 'USER',
+      status: 'SUSPENDED',
+      mfaEnabled: false,
+    });
+    const issue = jest.spyOn(service, 'issueLoginForUser').mockResolvedValue({
+      accessToken: 'must-not-be-issued',
+    });
+
+    await expect(service.loginWithKeycloak('TRADER@example.com', context))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    expect(issue).not.toHaveBeenCalled();
+  });
+
   it('issues the existing app session for an active account without legacy MFA', async () => {
     repository.findByEmail.mockResolvedValue({
       id: 'user-1',
