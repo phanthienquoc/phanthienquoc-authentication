@@ -90,3 +90,32 @@ Classify each row as: exact match, remote-only with recoverable source, local-on
 ## Current disposition
 
 **Investigation in progress; migration drift remains unresolved.** PR #77 restored the source for `20261027040648`, but the latest Supabase workflow still fails because remote migration versions are absent from the connected repository's local migration directory. Current checks confirm several example remote versions are absent at the standard migration paths in both allowed repos, but do not yet prove their origin in Git history. Continue Phase 1 with a complete version/path inventory and preserve the no-ledger-edit/no-blind-replay guardrails. No further Supabase schema/branch changes are made by this documentation update.
+
+
+## Read-only revalidation (2026-11-02 00:00 ICT / 2026-11-01 17:00 UTC)
+
+The 2026-10-27 source/ledger mismatch described above is a historical observation and is **not reproduced against the current master migration directory**.
+
+A fresh, read-only comparison was performed using the Supabase migration-list API for project `gtqovpusfyyvxpeezxlo` and the GitHub API listing of `supabase/migrations/` on Authentication `master`:
+
+| Check | Result |
+|---|---:|
+| Remote migration ledger rows | 84 |
+| Local `.sql` migration files | 84 |
+| Exact version + migration-name matches | 84 |
+| Remote-only versions | 0 |
+| Local-only versions | 0 |
+| Duplicate local version prefixes | 0 |
+
+The latest remote/local matching version is `20261028020259_revoke_browser_access_from_tce_data_api`. All 84 version/name pairs match exactly; the previous 65 remote-only / 32 local-only / 13 exact-match counts and duplicate-prefix list are superseded for the current master snapshot.
+
+Additional read-only project metadata:
+- Supabase project status: `ACTIVE_HEALTHY`.
+- PostgreSQL version: `17.6.1.084`.
+- The branch-list API returned branch `main` with status `FUNCTIONS_DEPLOYED`; that status is not a substitute for the GitHub integration's production deployment history and does not independently prove whether an earlier migration failure record has been cleared.
+
+### Updated disposition
+
+**Current migration source/ledger version-set alignment: PASS (84/84).** The earlier missing-local-version error is no longer explained by a current master version/name mismatch. The exact production GitHub integration deployment status/history and the outcome of any previously failed deployment remain unverified through the available read-only APIs. Do not infer that the production migration pipeline is fully healthy from project `ACTIVE_HEALTHY` or version-set equality alone.
+
+PR #75 remains open pending the already-recorded production side-effect review. Its current changed-file list contains documentation and HTTP tests only, with no migration SQL; nevertheless, the owner-confirmed GitHub integration has Deploy to production enabled on `master`, so do not merge it until the integration's behavior for a master push is authoritatively checked. No migration, schema, data, branch, integration setting, or database deployment was changed during this revalidation.
