@@ -23,5 +23,19 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - name: Validate manual-only release action pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_workflow=.github/workflows/release.yml
+          grep -Fq 'workflow_dispatch:' "$release_workflow"
+          if grep -Eq '^  (push|pull_request|schedule):' "$release_workflow"; then
+            echo "::error::Auth image publication must remain manual-only."
+            exit 1
+          fi
+          [[ "$(grep -Fc 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' "$release_workflow")" -eq 2 ]]
+          [[ "$(grep -Fc 'uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0' "$release_workflow")" -eq 2 ]]
+          grep -Fq 'uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0' "$release_workflow"
+          grep -Fq 'uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1' "$release_workflow"
       - name: Build container image
         run: docker build --tag auth-service:ci .
