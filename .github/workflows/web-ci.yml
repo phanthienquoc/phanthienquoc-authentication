@@ -29,8 +29,10 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package.json
-      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate a complete optional-dependency lock
+        run: npm install --package-lock-only --include=optional --ignore-scripts --no-audit --no-fund
+      - name: Install from the generated lock including optional platform packages
+        run: npm ci --include=optional --ignore-scripts --no-audit --no-fund
       - run: npm test
       - run: npm run typecheck
       - run: npm run lint
