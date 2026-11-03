@@ -58,11 +58,11 @@ npm run build
 
 ## CI and image release
 
-- `.github/workflows/ci.yml` runs tests, typecheck and build on feature branches and pull requests.
-- `.github/workflows/release.yml` verifies the service and builds an ARM64 container on `master`, tagged with the exact Git commit SHA. The image includes BuildKit provenance and an SBOM.
-- After publishing, Auth sends `repository_dispatch` event `image-published` to `phanthienquoc/platform-infra` with `client_payload.app=auth-service`, `client_payload.component=auth`, and `client_payload.tag=<full-git-sha>`.
+- `.github/workflows/ci.yml` runs tests, typecheck, build and the immutable release-contract validator on feature branches and pull requests.
+- `.github/workflows/release.yml` is manual-only from `master`. It verifies the service and publishes an ARM64 image with both the full 40-character Git SHA tag and a versioned full-SHA tag, plus BuildKit provenance and an SBOM.
+- After verifying that both GHCR tags resolve to the same SHA-256 digest and expose `linux/arm64`, Auth sends `repository_dispatch` event `auth-image-published` to `phanthienquoc/platform-infra`. The payload includes `app=auth-service`, `component=auth`, full source `commit`, versioned full-SHA `tag`, `auth_digest`, `source_run_id`, `source_workflow_path`, `source_event`, and `source_head_sha`.
 - Configure the Auth repository secret `PLATFORM_INFRA_DISPATCH_TOKEN` with permission to dispatch repository events to `platform-infra`. It is a GitHub integration token, not a Supabase credential. The release job fails closed if this token is missing, so a published image cannot silently skip its deployment handoff.
-- `platform-infra` validates the image and creates a single-file Kustomize promotion PR for Auth. Promotion and production rollout remain gated by infra CI, GHCR pull authorization, runtime secrets, Supabase RPC migration, and health checks.
+- `platform-infra` verifies the exact public Actions source run and required publisher jobs/steps, correlates the versioned tag to the supplied ARM64 digest, and pins only the Auth Kustomize image entry by digest. Production rollout remains gated by infra CI, GHCR pull authorization, runtime secrets, Supabase RPC migration, and health checks.
 
 ## Required integration gates before production
 
