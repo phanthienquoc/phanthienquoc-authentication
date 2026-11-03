@@ -23,6 +23,8 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - name: Validate immutable Auth release contract
+        run: node scripts/validate-release-contract.mjs
       - name: Validate manual-only release action pins
         shell: bash
         run: |
