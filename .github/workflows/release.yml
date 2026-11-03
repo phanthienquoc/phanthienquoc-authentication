@@ -65,8 +65,7 @@ jobs:
             exit 1
           fi
           [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Expected a full immutable Git SHA"; exit 1; }
-          SHORT_SHA="${TAG:0:7}"
-          RELEASE_TAG="prod-v${VERSION}-${SHORT_SHA}"
+          RELEASE_TAG="prod-v${VERSION}-${TAG}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "Validated release contract: $RELEASE_TAG"
@@ -104,18 +103,75 @@ jobs:
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "Published $IMAGE:$TAG and $IMAGE:$RELEASE_TAG ($DIGEST)"
 
+      - name: Verify published digest and ARM64 manifest
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          SHA_TAG: ${{ steps.image.outputs.sha_tag }}
+          RELEASE_TAG: ${{ steps.image.outputs.release_tag }}
+          EXPECTED_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Buildx did not return a valid immutable Auth registry digest."
+            exit 1
+          }
+          for tag in "$SHA_TAG" "$RELEASE_TAG"; do
+            inspect="$(docker buildx imagetools inspect "$IMAGE:$tag")"
+            actual_digest="$(awk '/^Digest:/ {print $2; exit}' <<< "$inspect")"
+            [[ "$actual_digest" == "$EXPECTED_DIGEST" ]] || {
+              echo "::error::Auth image tag $tag resolved to $actual_digest, expected $EXPECTED_DIGEST."
+              exit 1
+            }
+            grep -Eq 'Platform: linux/arm64|linux/arm64' <<< "$inspect" || {
+              echo "::error::Auth image tag $tag has no linux/arm64 manifest."
+              exit 1
+            }
+          done
+          echo "Verified both immutable Auth tags resolve to $EXPECTED_DIGEST with linux/arm64."
+
       - name: Request Auth image promotion in platform-infra
         env:
           GH_TOKEN: ${{ secrets.PLATFORM_INFRA_DISPATCH_TOKEN }}
           TAG: ${{ github.sha }}
           RELEASE_TAG: ${{ steps.release-contract.outputs.release_tag }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+          SOURCE_WORKFLOW_PATH: .github/workflows/release.yml
+          SOURCE_EVENT: ${{ github.event_name }}
+          SOURCE_HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          [[ "$SOURCE_EVENT" == "workflow_dispatch" ]] || {
+            echo "::error::Auth production publisher must originate from workflow_dispatch."
+            exit 1
+          }
+          [[ "$TAG" =~ ^[0-9a-f]{40}$ && "$SOURCE_HEAD_SHA" == "$TAG" ]] || {
+            echo "::error::Auth publisher source SHA must be a full 40-character commit."
+            exit 1
+          }
+          [[ "$RELEASE_TAG" == "prod-v${{ steps.release-contract.outputs.version }}-$TAG" ]] || {
+            echo "::error::Auth versioned release tag must include the full source SHA."
+            exit 1
+          }
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]] || {
+            echo "::error::Auth source run ID is invalid."
+            exit 1
+          }
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Auth registry digest is invalid."
+            exit 1
+          }
           gh api --method POST \
             -H "Accept: application/vnd.github+json" \
             "/repos/phanthienquoc/platform-infra/dispatches" \
-            -f event_type="image-published" \
+            -f event_type="auth-image-published" \
             -f "client_payload[app]=auth-service" \
             -f "client_payload[component]=auth" \
-            -f "client_payload[tag]=$RELEASE_TAG"
-          echo "Requested GitOps promotion for Auth image tag $RELEASE_TAG (immutable SHA: $TAG)"
+            -f "client_payload[commit]=$TAG" \
+            -f "client_payload[tag]=$RELEASE_TAG" \
+            -f "client_payload[auth_digest]=$DIGEST" \
+            -f "client_payload[source_run_id]=$SOURCE_RUN_ID" \
+            -f "client_payload[source_workflow_path]=$SOURCE_WORKFLOW_PATH" \
+            -f "client_payload[source_event]=$SOURCE_EVENT" \
+            -f "client_payload[source_head_sha]=$SOURCE_HEAD_SHA"
+          echo "Requested digest-pinned GitOps promotion for Auth $RELEASE_TAG ($DIGEST)."
