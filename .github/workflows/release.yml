@@ -7,14 +7,29 @@ name: auth-service-release
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: auth-service-release
   cancel-in-progress: false
 
 jobs:
+  validate-release-ref:
+    name: Require master for production release
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Reject non-master production releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Auth production release must be manually dispatched from refs/heads/master; refusing image publication and GitOps promotion."
+            exit 1
+          fi
+          echo "Auth release ref is master."
+
   verify:
+    needs: validate-release-ref
     name: Verify auth service
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -34,7 +49,10 @@ jobs:
   publish:
     name: Build and publish ARM64 image with version and SHA tags
     if: ${{ github.ref == 'refs/heads/master' }}
-    needs: [verify]
+    needs: [validate-release-ref, verify]
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
