@@ -39,5 +39,50 @@ jobs:
           [[ "$(grep -Fc 'uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0' "$release_workflow")" -eq 2 ]]
           grep -Fq 'uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0' "$release_workflow"
           grep -Fq 'uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1' "$release_workflow"
+
+      - name: Validate native ARM64 image-build CI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ci_workflow=.github/workflows/ci.yml
+          arm64_block="$(awk '/^  arm64-image-build:$/ {inside=1; print; next} inside && /^  [A-Za-z0-9_-]+:$/ {exit} inside {print}' "$ci_workflow")"
+          [[ -n "$arm64_block" ]] || { echo "::error::Missing native ARM64 image-build job."; exit 1; }
+          grep -Fq 'runs-on: ubuntu-24.04-arm' <<< "$arm64_block"
+          grep -Fq 'name: Verify native ARM64 runner' <<< "$arm64_block"
+          grep -Fq 'platforms: linux/arm64' <<< "$arm64_block"
+          grep -Fq 'push: false' <<< "$arm64_block"
+          grep -Fq 'load: true' <<< "$arm64_block"
+          grep -Fq 'context: .' <<< "$arm64_block"
+          grep -Fq 'tags: auth-service:ci-arm64' <<< "$arm64_block"
+          grep -Fq 'docker image inspect auth-service:ci-arm64 --format' <<< "$arm64_block"
+          if grep -Eq 'packages: write|push: true|repository_dispatch|PLATFORM_INFRA_DISPATCH_TOKEN|gh api --method POST' <<< "$arm64_block"; then
+            echo "::error::The Auth CI ARM64 image check must not publish or request GitOps promotion."
+            exit 1
+          fi
+          grep -Fq 'uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1' <<< "$arm64_block"
+          grep -Fq 'uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0' <<< "$arm64_block"
+
       - name: Build container image
         run: docker build --tag auth-service:ci .
+
+  arm64-image-build:
+    name: Build production container on ARM64 without publishing
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify native ARM64 runner
+        run: test "$(uname -m)" = "aarch64"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build ARM64 production image without publishing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: auth-service:ci-arm64
+      - name: Verify local image architecture
+        run: test "$(docker image inspect auth-service:ci-arm64 --format '{{.Architecture}}')" = "arm64"
