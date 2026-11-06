@@ -6,6 +6,12 @@ const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 
 const required = [
   "workflow_dispatch:",
+  "  validate-release-ref:\n",
+  "    name: Require master for production release\n",
+  '          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then',
+  "    permissions: {}\n",
+  "  verify:\n    needs: validate-release-ref\n",
+  "    needs: [validate-release-ref, verify]\n",
   'RELEASE_TAG="prod-v${VERSION}-${TAG}"',
   "--platform linux/arm64",
   "--provenance=true",
