@@ -89,9 +89,9 @@ execFileSync("bash", ["scripts/tests/verify-ghcr-tags-absent.test.sh"], { stdio:
 const filterMarker = '              keys == ["client_payload", "event_type"]';
 const filterMarkerIndex = release.indexOf(filterMarker);
 assert.ok(filterMarkerIndex >= 0, "Auth dispatch jq schema filter must remain present in release.yml.");
-const filterOpenMarker = "\\n            '\\n";
+const filterOpenMarker = "\n            '\n";
 const filterOpenIndex = release.lastIndexOf(filterOpenMarker, filterMarkerIndex);
-const filterCloseMarker = "\\n            ' \\"$PAYLOAD_FILE\\\"";
+const filterCloseMarker = "\n            ' \"$PAYLOAD_FILE\"";
 const filterCloseIndex = release.indexOf(filterCloseMarker, filterMarkerIndex);
 assert.ok(
   filterOpenIndex >= 0 && filterCloseIndex > filterMarkerIndex,
@@ -99,9 +99,9 @@ assert.ok(
 );
 const dispatchFilter = release
   .slice(filterOpenIndex + filterOpenMarker.length, filterCloseIndex)
-  .split("\\n")
+  .split("\n")
   .map((line) => line.trim())
-  .join("\\n");
+  .join("\n");
 
 const sourceSha = "a".repeat(40);
 const authDigest = `sha256:${"b".repeat(64)}`;
