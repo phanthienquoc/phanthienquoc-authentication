@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const release = readFileSync(".github/workflows/release.yml", "utf8");
@@ -17,6 +18,8 @@ const required = [
   "--provenance=true",
   "--sbom=true",
   "Verify published digest and ARM64 manifest",
+  "Refuse to overwrite existing immutable Auth GHCR tags",
+  'run: bash scripts/verify-ghcr-tags-absent.sh "$IMAGE" "$SHA_TAG" "$RELEASE_TAG"',
   "docker buildx imagetools inspect",
   'event_type="auth-image-published"',
   "client_payload[app]=auth-service",
@@ -45,5 +48,9 @@ assert.ok(
   ci.includes("node scripts/validate-release-contract.mjs"),
   "Auth CI must execute the release contract validator.",
 );
+
+assert.ok(release.includes("docker buildx imagetools inspect \"$IMAGE:$tag\""), "Auth release must verify both tags after publication.");
+assert.ok(release.indexOf("Refuse to overwrite existing immutable Auth GHCR tags") < release.indexOf("Build and publish image"), "The Auth tag guard must run before the first image push.");
+execFileSync("bash", ["scripts/tests/verify-ghcr-tags-absent.test.sh"], { stdio: "inherit" });
 
 console.log("Auth immutable release contract validation passed.");
