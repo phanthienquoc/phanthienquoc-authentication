@@ -153,9 +153,9 @@ jobs:
           done
           echo "Verified both immutable Auth tags resolve to $EXPECTED_DIGEST with linux/arm64."
 
-      - name: Request Auth image promotion in platform-infra
+      - name: Build and validate exact Auth repository-dispatch payload
+        id: dispatch-payload
         env:
-          GH_TOKEN: ${{ secrets.PLATFORM_INFRA_DISPATCH_TOKEN }}
           TAG: ${{ github.sha }}
           RELEASE_TAG: ${{ steps.release-contract.outputs.release_tag }}
           DIGEST: ${{ steps.image.outputs.digest }}
@@ -178,7 +178,7 @@ jobs:
             echo "::error::Auth versioned release tag must include the full source SHA."
             exit 1
           }
-          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]] || {
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::Auth source run ID is invalid."
             exit 1
           }
@@ -190,18 +190,73 @@ jobs:
             echo "::error::Auth registry digest is invalid."
             exit 1
           }
+
+          PAYLOAD_FILE="$RUNNER_TEMP/auth-image-published.json"
+          payload="$(jq -cn \
+            --arg app "auth-service" \
+            --arg component "auth" \
+            --arg commit "$TAG" \
+            --arg tag "$RELEASE_TAG" \
+            --arg auth_digest "$DIGEST" \
+            --arg source_run_id "$SOURCE_RUN_ID" \
+            --arg source_run_attempt "$SOURCE_RUN_ATTEMPT" \
+            --arg source_workflow_path "$SOURCE_WORKFLOW_PATH" \
+            --arg source_event "$SOURCE_EVENT" \
+            --arg source_head_sha "$SOURCE_HEAD_SHA" \
+            '{event_type:"auth-image-published",client_payload:{app:$app,component:$component,commit:$commit,tag:$tag,auth_digest:$auth_digest,source_run_id:$source_run_id,source_run_attempt:$source_run_attempt,source_workflow_path:$source_workflow_path,source_event:$source_event,source_head_sha:$source_head_sha}}')"
+          printf '%s\n' "$payload" > "$PAYLOAD_FILE"
+
+          jq -e \
+            --arg app "auth-service" \
+            --arg component "auth" \
+            --arg commit "$TAG" \
+            --arg tag "$RELEASE_TAG" \
+            --arg auth_digest "$DIGEST" \
+            --arg source_run_id "$SOURCE_RUN_ID" \
+            --arg source_run_attempt "$SOURCE_RUN_ATTEMPT" \
+            --arg source_workflow_path "$SOURCE_WORKFLOW_PATH" \
+            --arg source_event "$SOURCE_EVENT" \
+            --arg source_head_sha "$SOURCE_HEAD_SHA" \
+            '
+              keys == ["client_payload", "event_type"]
+              and .event_type == "auth-image-published"
+              and (.client_payload | keys == ["app", "auth_digest", "commit", "component", "source_event", "source_head_sha", "source_run_attempt", "source_run_id", "source_workflow_path", "tag"])
+              and .client_payload.app == $app
+              and .client_payload.component == $component
+              and .client_payload.commit == $commit
+              and .client_payload.tag == $tag
+              and .client_payload.auth_digest == $auth_digest
+              and (.client_payload.auth_digest | test("^sha256:[0-9a-f]{64}$"))
+              and .client_payload.source_run_id == $source_run_id
+              and (.client_payload.source_run_id | test("^[1-9][0-9]*$"))
+              and .client_payload.source_run_attempt == $source_run_attempt
+              and (.client_payload.source_run_attempt | test("^[1-9][0-9]*$"))
+              and .client_payload.source_workflow_path == $source_workflow_path
+              and .client_payload.source_event == "workflow_dispatch"
+              and .client_payload.source_event == $source_event
+              and .client_payload.source_head_sha == $source_head_sha
+              and (.client_payload.commit | test("^[0-9a-f]{40}$"))
+              and .client_payload.commit == .client_payload.source_head_sha
+            ' "$PAYLOAD_FILE" >/dev/null
+
+          {
+            echo "### Auth promotion dispatch payload"
+            echo "- Event: auth-image-published"
+            echo "- Source run: $SOURCE_RUN_ID (attempt $SOURCE_RUN_ATTEMPT)"
+            echo "- Source SHA: $SOURCE_HEAD_SHA"
+            echo "- Registry digest: $DIGEST"
+            echo "- Exact payload schema: verified"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Request Auth image promotion in platform-infra
+        if: steps.dispatch-payload.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_INFRA_DISPATCH_TOKEN }}
+          PAYLOAD_FILE: ${{ runner.temp }}/auth-image-published.json
+        run: |
+          set -euo pipefail
           gh api --method POST \
             -H "Accept: application/vnd.github+json" \
-            "/repos/phanthienquoc/platform-infra/dispatches" \
-            -f event_type="auth-image-published" \
-            -f "client_payload[app]=auth-service" \
-            -f "client_payload[component]=auth" \
-            -f "client_payload[commit]=$TAG" \
-            -f "client_payload[tag]=$RELEASE_TAG" \
-            -f "client_payload[auth_digest]=$DIGEST" \
-            -f "client_payload[source_run_id]=$SOURCE_RUN_ID" \
-            -f "client_payload[source_run_attempt]=$SOURCE_RUN_ATTEMPT" \
-            -f "client_payload[source_workflow_path]=$SOURCE_WORKFLOW_PATH" \
-            -f "client_payload[source_event]=$SOURCE_EVENT" \
-            -f "client_payload[source_head_sha]=$SOURCE_HEAD_SHA"
-          echo "Requested digest-pinned GitOps promotion for Auth $RELEASE_TAG ($DIGEST)."
+            --input "$PAYLOAD_FILE" \
+            "/repos/phanthienquoc/platform-infra/dispatches"
+          echo "Requested digest-pinned GitOps promotion for Auth."
