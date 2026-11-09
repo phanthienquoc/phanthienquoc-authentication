@@ -21,19 +21,20 @@ const required = [
   "Refuse to overwrite existing immutable Auth GHCR tags",
   'run: bash scripts/verify-ghcr-tags-absent.sh "$IMAGE" "$SHA_TAG" "$RELEASE_TAG"',
   "docker buildx imagetools inspect",
-  'event_type="auth-image-published"',
-  "client_payload[app]=auth-service",
-  "client_payload[component]=auth",
-  "client_payload[commit]=$TAG",
-  "client_payload[tag]=$RELEASE_TAG",
-  "client_payload[auth_digest]=$DIGEST",
+  "name: Build and validate exact Auth repository-dispatch payload",
+  "id: dispatch-payload",
+  "payload=\"$(jq -cn",
+  "event_type:\"auth-image-published\"",
+  "keys == [\"client_payload\", \"event_type\"]",
+  "keys == [\"app\", \"auth_digest\", \"commit\", \"component\", \"source_event\", \"source_head_sha\", \"source_run_attempt\", \"source_run_id\", \"source_workflow_path\", \"tag\"]",
+  "and .client_payload.source_run_attempt == $source_run_attempt",
+  "and .client_payload.source_event == \"workflow_dispatch\"",
+  "and .client_payload.commit == .client_payload.source_head_sha",
   "SOURCE_RUN_ATTEMPT: ${{ github.run_attempt }}",
   '[[ "$SOURCE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]',
-  "client_payload[source_run_id]=$SOURCE_RUN_ID",
-  "client_payload[source_run_attempt]=$SOURCE_RUN_ATTEMPT",
-  "client_payload[source_workflow_path]=$SOURCE_WORKFLOW_PATH",
-  "client_payload[source_event]=$SOURCE_EVENT",
-  "client_payload[source_head_sha]=$SOURCE_HEAD_SHA",
+  "PAYLOAD_FILE: ${{ runner.temp }}/auth-image-published.json",
+  "if: steps.dispatch-payload.outcome == 'success'",
+  '--input "$PAYLOAD_FILE"',
 ];
 
 for (const token of required) {
@@ -50,6 +51,19 @@ assert.ok(
 assert.ok(
   ci.includes("node scripts/validate-release-contract.mjs"),
   "Auth CI must execute the release contract validator.",
+);
+assert.ok(
+  release.indexOf("Build and validate exact Auth repository-dispatch payload") <
+    release.indexOf("Request Auth image promotion in platform-infra"),
+  "The exact Auth dispatch payload must be built and validated before it is sent.",
+);
+assert.ok(
+  release.includes("if: steps.dispatch-payload.outcome == 'success'"),
+  "Auth dispatch must be gated on successful exact-payload validation.",
+);
+assert.ok(
+  !release.includes("client_payload[app]=auth-service"),
+  "Auth dispatch must send the validated JSON payload rather than independently reconstructed form fields.",
 );
 
 assert.ok(release.includes("docker buildx imagetools inspect \"$IMAGE:$tag\""), "Auth release must verify both tags after publication.");
