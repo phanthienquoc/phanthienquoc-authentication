@@ -94,6 +94,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Refuse to overwrite existing immutable Auth GHCR tags
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/auth-service/auth
+          SHA_TAG: ${{ github.sha }}
+          RELEASE_TAG: ${{ steps.release-contract.outputs.release_tag }}
+        run: bash scripts/verify-ghcr-tags-absent.sh "$IMAGE" "$SHA_TAG" "$RELEASE_TAG"
       - name: Build and publish image
         id: image
         env:
