@@ -86,4 +86,78 @@ assert.ok(release.includes("docker buildx imagetools inspect \"$IMAGE:$tag\""), 
 assert.ok(release.indexOf("Refuse to overwrite existing immutable Auth GHCR tags") < release.indexOf("Build and publish image"), "The Auth tag guard must run before the first image push.");
 execFileSync("bash", ["scripts/tests/verify-ghcr-tags-absent.test.sh"], { stdio: "inherit" });
 
+const filterMarker = '              keys == ["client_payload", "event_type"]';
+const filterMarkerIndex = release.indexOf(filterMarker);
+assert.ok(filterMarkerIndex >= 0, "Auth dispatch jq schema filter must remain present in release.yml.");
+const filterOpenMarker = "\n            '\n";
+const filterOpenIndex = release.lastIndexOf(filterOpenMarker, filterMarkerIndex);
+const filterCloseMarker = "\n            ' \"$PAYLOAD_FILE\"";
+const filterCloseIndex = release.indexOf(filterCloseMarker, filterMarkerIndex);
+assert.ok(
+  filterOpenIndex >= 0 && filterCloseIndex > filterMarkerIndex,
+  "Auth dispatch jq filter must be extractable for CI fixture tests.",
+);
+const dispatchFilter = release
+  .slice(filterOpenIndex + filterOpenMarker.length, filterCloseIndex)
+  .split("\n")
+  .map((line) => line.trim())
+  .join("\n");
+
+const sourceSha = "a".repeat(40);
+const authDigest = `sha256:${"b".repeat(64)}`;
+const sourceRunId = "123456789";
+const sourceRunAttempt = "2";
+const sourceWorkflowPath = ".github/workflows/release.yml";
+const releaseTag = `prod-v1.2.3-${sourceSha}`;
+const jqArgs = [
+  "-e",
+  "--arg", "app", "auth-service",
+  "--arg", "component", "auth",
+  "--arg", "commit", sourceSha,
+  "--arg", "tag", releaseTag,
+  "--arg", "auth_digest", authDigest,
+  "--arg", "source_run_id", sourceRunId,
+  "--arg", "source_run_attempt", sourceRunAttempt,
+  "--arg", "source_workflow_path", sourceWorkflowPath,
+  "--arg", "source_event", "workflow_dispatch",
+  "--arg", "source_head_sha", sourceSha,
+  dispatchFilter,
+];
+const validDispatchPayload = {
+  event_type: "auth-image-published",
+  client_payload: {
+    app: "auth-service",
+    component: "auth",
+    commit: sourceSha,
+    tag: releaseTag,
+    auth_digest: authDigest,
+    source_run_id: sourceRunId,
+    source_run_attempt: sourceRunAttempt,
+    source_workflow_path: sourceWorkflowPath,
+    source_event: "workflow_dispatch",
+    source_head_sha: sourceSha,
+  },
+};
+const runDispatchFilter = (payload) =>
+  execFileSync("jq", jqArgs, {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+assert.equal(runDispatchFilter(validDispatchPayload).trim(), "true", "A valid Auth dispatch payload must pass the exact release.yml jq filter.");
+
+const invalidDispatchPayloads = [
+  ["zero run attempt", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, source_run_attempt: "0" } }],
+  ["non-numeric run ID", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, source_run_id: "run-123" } }],
+  ["wrong digest", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, auth_digest: "sha256:invalid" } }],
+  ["push event", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, source_event: "push" } }],
+  ["mismatched source SHA", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, source_head_sha: "c".repeat(40) } }],
+  ["wrong workflow path", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, source_workflow_path: ".github/workflows/ci.yml" } }],
+  ["extra client payload key", { ...validDispatchPayload, client_payload: { ...validDispatchPayload.client_payload, unverified: true } }],
+  ["extra root key", { ...validDispatchPayload, unexpected: true }],
+];
+for (const [name, payload] of invalidDispatchPayloads) {
+  assert.throws(() => runDispatchFilter(payload), `Unsafe Auth dispatch payload accepted: ${name}`);
+}
+
 console.log("Auth immutable release contract validation passed.");
