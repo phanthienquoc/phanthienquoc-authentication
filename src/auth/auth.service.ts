@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -78,28 +77,6 @@ export class AuthService {
       ? this.jwt.issue(user.id, user.role)
       : this.jwt.issue(user.id, user.role, context.mfaVerifiedAt);
     return { accessToken };
-  }
-
-  /** Exchange a verified Keycloak identity for the existing app session contract. */
-  async loginWithKeycloak(email: string, context: {
-    userAgent?: string; ip?: string; response: Response;
-  }) {
-    const normalizedEmail = email.trim().toLowerCase();
-    let user: AuthUser | null;
-    try {
-      user = await this.repository.findByEmail(normalizedEmail);
-    } catch {
-      throw new ServiceUnavailableException('Authentication unavailable');
-    }
-    if (!user || user.status !== 'ACTIVE' || user.email !== normalizedEmail) {
-      throw new UnauthorizedException('No active account is linked to this verified identity');
-    }
-    // Do not silently bypass an account's existing app-managed MFA policy.
-    // Those accounts keep using legacy sign-in until MFA assurance is migrated and tested.
-    if (user.mfaEnabled) {
-      throw new ForbiddenException('This account must use legacy sign-in until MFA migration is complete');
-    }
-    return this.issueLoginForUser(user, context);
   }
 
   async me(userId: string) {

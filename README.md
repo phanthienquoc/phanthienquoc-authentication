@@ -77,27 +77,8 @@ npm run build
 Do not publish database credentials, perform destructive schema changes, or route production users until auth compatibility, integration tests, migration readiness, secret availability and rollback are verified.
 
 
-## Keycloak + NestJS resource-server integration
+## Supabase-backed password and passkey authentication
 
-The NestJS app now exposes a Keycloak-protected identity endpoint at `GET /api/oidc/me`. It validates the bearer access token signature against Keycloak's remote JWKS and checks the exact issuer, required audience, expiry and RS256 algorithm. It rejects malformed/expired tokens and does not accept decode-only JWT parsing. Role claims are extracted from `realm_access.roles` and `resource_access.*.roles`.
+The canonical identity store remains the existing `public.users`, refresh-session, MFA/recovery and passkey tables in the shared Supabase project. Password login uses the existing app-managed password hashes; passkey login uses WebAuthn challenge/credential records. No user-store migration or duplicate account provisioning is required for existing accounts.
 
-Configure server-only variables in the runtime secret/config contract:
-- `KEYCLOAK_URL`: Keycloak base URL reachable from NestJS.
-- `KEYCLOAK_REALM`: realm name.
-- `KEYCLOAK_ISSUER`: exact issuer claim, normally `KEYCLOAK_URL/realms/KEYCLOAK_REALM`.
-- `KEYCLOAK_AUDIENCE`: API audience that must be present in access tokens.
-
-**Keycloak configuration requirement:** configure a client scope / protocol mapper that adds the API audience (for example `nest-api`) to access-token `aud`. Do not weaken or remove audience validation to make a token pass. Keep client secrets out of `NEXT_PUBLIC_*` variables.
-
-The TCE session exchange is opt-in and additive: it requires `KEYCLOAK_TCE_CLIENT_ID=tce-dashboard`, a token whose `azp` exactly matches that client, and `email_verified=true`. It links only to an existing ACTIVE account with the exact verified email; it never auto-provisions users. Accounts with legacy app-managed MFA are rejected rather than having MFA silently bypassed. On success, the service issues the existing app JWT and HttpOnly refresh cookie so TCE can continue using its current API contract. The refresh cookie path is `/auth`, matching the public `/auth/*` routes. Existing custom login/session endpoints remain available. Do not enable TCE SSO mode until the shared JWT signing secret is confirmed identical between central Auth and the TCE API, the runtime client/issuer/audience configuration is verified, and non-production end-to-end tests pass.
-
-
-## Keycloak identity metadata in Supabase
-
-The NestJS service uses the existing `@supabase/supabase-js` server-side client (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) to upsert a minimal record in `public.auth_keycloak_identities` when an authenticated caller requests `GET /api/oidc/me`. Records are keyed by the exact Keycloak issuer and subject, so users from different realms/issuers cannot collide.
-
-Apply `supabase/migrations/20261014000000_keycloak_identity_persistence.sql` to the existing Supabase project before using this endpoint. The migration adds a separate table and does not alter or migrate existing legacy `users`, refresh-session, MFA or passkey records. RLS is enabled and direct `anon`/`authenticated` access is revoked; only the backend service-role client is intended to access this table.
-
-Only identity metadata is persisted: issuer, subject, email, preferred username, email verification status and last authenticated time. **Do not store Keycloak passwords, access tokens, ID tokens, refresh tokens, client secrets or treat stored role snapshots as authorization truth.** Keycloak remains the source of truth for credentials, MFA, sessions and roles; NestJS authorizes requests using the verified access token.
-
-The identity sync is deliberately limited to `/api/oidc/me`, not every guarded API request. Supabase persistence failure returns a service-unavailable response from that endpoint. Existing legacy auth routes are unchanged. This work does not integrate or change TCE Dashboard or Media Generation and does not apply the migration to production automatically.
+Keycloak/OIDC authentication and identity-linking endpoints are not part of the application runtime. TCE and Media consumers use the shared `auth.mrcute.space` service and its existing password/passkey/session contract.
