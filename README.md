@@ -79,6 +79,4 @@ Do not publish database credentials, perform destructive schema changes, or rout
 
 ## Supabase-backed password and passkey authentication
 
-The canonical identity store remains the existing `public.users`, refresh-session, MFA/recovery and passkey tables in the shared Supabase project. Password login uses the existing app-managed password hashes; passkey login uses WebAuthn challenge/credential records. No user-store migration or duplicate account provisioning is required for existing accounts.
-
-Keycloak/OIDC authentication and identity-linking endpoints are not part of the application runtime. TCE and Media consumers use the shared `auth.mrcute.space` service and its existing password/passkey/session contract.
+The canonical identity store remains the existing `public.users`, refresh-session, MFA/recovery and passkey tables in the shared Supabase project. Password login uses the existing app-managed password hashes; passkey login uses WebAuthn challenge/credential records. Existing accounts and passkeys are preserved in place. The service exposes the existing `/auth/*` contract; Keycloak/OIDC routes, guards and identity-linking components are not part of the runtime.
